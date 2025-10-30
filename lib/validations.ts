@@ -23,18 +23,6 @@ export const createKnowledgeBaseSchema = z.object({
     .string()
     .max(500, 'Retrieval instructions must be 500 characters or less')
     .optional(),
-  includeReferences: z.boolean(),
-  includeReferenceSourceData: z.boolean(),
-  alwaysQuerySource: z.boolean(),
-  maxSubQueries: z
-    .number()
-    .min(1, 'Minimum 1 sub-query')
-  .max(20, 'Maximum 20 sub-queries'),
-  rerankerThreshold: z
-    .number()
-    .min(0, 'Minimum threshold is 0.0')
-    .max(5, 'Maximum threshold is 5.0'),
-  includeActivity: z.boolean(),
   sources: z
     .array(z.string())
     .min(1, 'Select at least one knowledge source'),

@@ -27,7 +27,7 @@ interface KBViewCodeModalProps {
   searchEndpoint: string
   runtimeSettings?: {
     outputMode?: 'answerSynthesis' | 'extractiveData'
-    reasoningEffort?: 'low' | 'medium' | 'high'
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
     globalHeaders?: Record<string, string>
     knowledgeSourceParams?: Array<{
       knowledgeSourceName: string
@@ -132,9 +132,27 @@ export function KBViewCodeModal({ isOpen, onClose, agentId, agentName, messages,
 
   // Generate cURL code
   const generateCurlCode = () => {
+    // Determine if we should use intents format (when reasoning effort is minimal)
+    const useIntentsFormat = runtimeSettings?.reasoningEffort === 'minimal'
+    
     // Build the request body exactly as the API does it
-    const requestBody: any = {
-      messages: apiMessages
+    const requestBody: any = {}
+    
+    if (useIntentsFormat) {
+      // For minimal reasoning: use intents format
+      // Extract just the text from the last user message
+      const lastUserMessage = messages.filter(m => m.role === 'user').pop()
+      const lastUserText = lastUserMessage?.content.find(c => c.type === 'text')?.text || 'Your question here'
+      
+      requestBody.intents = [
+        {
+          type: 'semantic',
+          search: lastUserText
+        }
+      ]
+    } else {
+      // Standard format: use messages
+      requestBody.messages = apiMessages
     }
 
     // Add global headers if present
@@ -216,14 +234,38 @@ curl -X POST "${searchEndpoint}/knowledgebases/${agentId}/retrieve?api-version=2
 
   // Generate Python code
   const generatePythonCode = () => {
-    const messagesStr = messages.length > 0
-      ? JSON.stringify(apiMessages, null, 4).split('\n').map((line, idx) =>
-          idx === 0 ? line : `    ${line}`
-        ).join('\n')
-      : '[\n        {\n            "role": "user",\n            "content": [{"type": "text", "text": "Your question here"}]\n        }\n    ]'
+    // Determine if we should use intents format (when reasoning effort is minimal)
+    const useIntentsFormat = runtimeSettings?.reasoningEffort === 'minimal'
+    
+    let messagesOrIntentsCode: string
+    let requestBodyFirstPart: string
+    
+    if (useIntentsFormat) {
+      // For minimal reasoning: use intents format
+      const lastUserMessage = messages.filter(m => m.role === 'user').pop()
+      const lastUserText = lastUserMessage?.content.find(c => c.type === 'text')?.text || 'Your question here'
+      
+      messagesOrIntentsCode = `intents = [
+    {
+        "type": "semantic",
+        "search": "${lastUserText.replace(/"/g, '\\"')}"
+    }
+]`
+      requestBodyFirstPart = '    "intents": intents'
+    } else {
+      // Standard format: use messages
+      const messagesStr = messages.length > 0
+        ? JSON.stringify(apiMessages, null, 4).split('\n').map((line, idx) =>
+            idx === 0 ? line : `    ${line}`
+          ).join('\n')
+        : '[\n        {\n            "role": "user",\n            "content": [{"type": "text", "text": "Your question here"}]\n        }\n    ]'
+      
+      messagesOrIntentsCode = `messages = ${messagesStr}`
+      requestBodyFirstPart = '    "messages": messages'
+    }
 
     // Build request body dict matching actual API structure
-    let requestBodyParts = ['    "messages": messages']
+    let requestBodyParts = [requestBodyFirstPart]
 
     // Add global headers
     if (runtimeSettings?.globalHeaders && Object.keys(runtimeSettings.globalHeaders).filter(k => k && runtimeSettings.globalHeaders![k]).length > 0) {
@@ -267,7 +309,7 @@ curl -X POST "${searchEndpoint}/knowledgebases/${agentId}/retrieve?api-version=2
 
     const requestBodyStr = requestBodyParts.length > 1 
       ? '{\n' + requestBodyParts.join(',\n') + '\n}'
-      : '{"messages": messages}'
+      : useIntentsFormat ? '{"intents": intents}' : '{"messages": messages}'
 
     return `# pip install azure-search-documents==11.7.0b1
 import os
@@ -281,9 +323,9 @@ agent_id = "${agentId}"
 
 client = SearchAgentClient(endpoint, AzureKeyCredential(api_key))
 
-# Messages from your conversation
-# ${messages.length > 0 ? `${messages.length} message(s) in history` : 'Start with your first question'}
-messages = ${messagesStr}
+# ${useIntentsFormat ? 'Intents for semantic search (minimal reasoning)' : 'Messages from your conversation'}
+# ${!useIntentsFormat && messages.length > 0 ? `${messages.length} message(s) in history` : 'Start with your first question'}
+${messagesOrIntentsCode}
 
 # Build request body (matches actual API structure)
 request_body = ${requestBodyStr}

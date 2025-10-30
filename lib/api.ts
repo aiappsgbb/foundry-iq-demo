@@ -9,6 +9,8 @@ interface KnowledgeBase {
   models?: any[]
   knowledgeSources?: any[]
   outputConfiguration?: any
+  outputMode?: 'answerSynthesis' | 'extractiveData'
+  retrievalReasoningEffort?: { kind: 'minimal' | 'low' | 'medium' | 'high' }
   retrievalInstructions?: string
   requestLimits?: any
   '@odata.etag'?: string
@@ -132,7 +134,7 @@ export async function deleteKnowledgeBase(knowledgeBaseId: string): Promise<any>
 
 export async function retrieveFromKnowledgeBase(
   knowledgeBaseId: string,
-  messages: Message[],
+  messages: Message[] | null,
   params: RetrieveParams = {}
 ): Promise<any> {
   let userAclToken = params.xMsUserToken
@@ -167,7 +169,9 @@ export async function retrieveFromKnowledgeBase(
     headers['x-ms-query-source-authorization'] = userAclToken
   }
 
-  const payload: any = { messages, ...params }
+  // If messages is null, params should already contain the complete payload (intents format)
+  // Otherwise, use the standard messages format
+  const payload: any = messages !== null ? { messages, ...params } : { ...params }
   delete payload.xMsUserToken
   delete payload.globalHeaders // Don't send globalHeaders in body, only as HTTP headers
 

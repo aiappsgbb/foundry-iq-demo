@@ -33,6 +33,8 @@ type KnowledgeAgent = {
   sources: string[]
   status?: string
   outputConfiguration?: { modality?: string; answerInstructions?: string }
+  outputMode?: 'answerSynthesis' | 'extractiveData'
+  retrievalReasoningEffort?: { kind: 'minimal' | 'low' | 'medium' | 'high' }
   retrievalInstructions?: string
   knowledgeSources?: Array<{
     name: string
@@ -108,7 +110,7 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
   })
   const [runtimeSettings, setRuntimeSettings] = useState<{
     outputMode?: 'answerSynthesis' | 'extractiveData'
-    reasoningEffort?: 'low' | 'medium' | 'high'
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
     globalHeaders?: Record<string, string>
     knowledgeSourceParams: Array<{
       knowledgeSourceName: string
@@ -122,7 +124,7 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
     }>
   }>({
     outputMode: 'answerSynthesis',
-    reasoningEffort: 'low',
+    reasoningEffort: 'minimal',
     globalHeaders: {},
     knowledgeSourceParams: []
   })
@@ -172,6 +174,8 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
           status: 'active',
           description: agent.description,
           outputConfiguration: agent.outputConfiguration,
+          outputMode: agent.outputMode,
+          retrievalReasoningEffort: agent.retrievalReasoningEffort,
           retrievalInstructions: agent.retrievalInstructions,
             // Enrich knowledge sources with actual kind values from API
             knowledgeSources: (agent.knowledgeSources || []).map((ks: any) => ({
@@ -195,6 +199,22 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
           }
 
           setSelectedAgent(agentToSelect)
+          
+          // Initialize runtime settings from the selected knowledge base defaults
+          const reasoningEffort = agentToSelect.retrievalReasoningEffort?.kind || 'minimal'
+          
+          // Determine output mode from either outputMode or outputConfiguration.modality
+          const outputMode = agentToSelect.outputMode || 
+                            (agentToSelect.outputConfiguration?.modality as 'answerSynthesis' | 'extractiveData') || 
+                            'answerSynthesis'
+          
+          setRuntimeSettings({
+            outputMode: outputMode,
+            reasoningEffort: reasoningEffort,
+            globalHeaders: {},
+            knowledgeSourceParams: []
+          })
+          
           // Start fresh - no chat history persistence
           // loadChatHistory(agentToSelect.id)
         }
@@ -215,9 +235,18 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
       if (foundAgent && foundAgent.id !== selectedAgent?.id) {
         setSelectedAgent(foundAgent)
         setMessages([]) // Clear messages when switching agents
-        setRuntimeSettings({ // Reset runtime settings when switching agents
-          outputMode: 'answerSynthesis',
-          reasoningEffort: 'low',
+        
+        // Use the retrievalReasoningEffort.kind directly from the knowledge base
+        const reasoningEffort = foundAgent.retrievalReasoningEffort?.kind || 'minimal'
+        
+        // Determine output mode from either outputMode or outputConfiguration.modality
+        const outputMode = foundAgent.outputMode || 
+                          (foundAgent.outputConfiguration?.modality as 'answerSynthesis' | 'extractiveData') || 
+                          'answerSynthesis'
+        
+        setRuntimeSettings({ // Apply knowledge base defaults when switching agents
+          outputMode: outputMode,
+          reasoningEffort: reasoningEffort,
           knowledgeSourceParams: []
         })
       }
@@ -390,13 +419,41 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
         })
       }
 
+      // Determine if we should use intents instead of messages
+      // When reasoning effort is 'minimal', use intents format
+      const useIntentsFormat = runtimeSettings.reasoningEffort === 'minimal'
+      
+      let requestPayload: any
+      
+      if (useIntentsFormat) {
+        // For minimal reasoning effort, extract just the text from the last user message
+        // and format as intents
+        requestPayload = {
+          intents: [
+            {
+              type: 'semantic',
+              search: prompt
+            }
+          ],
+          ...apiParams
+        }
+        console.log('🔍 Using INTENTS format (minimal reasoning)')
+      } else {
+        // Standard messages format for medium/low/high reasoning
+        requestPayload = {
+          messages: azureMessages,
+          ...apiParams
+        }
+        console.log('🔍 Using MESSAGES format (standard reasoning)')
+      }
+
       // Debug logging - SEND PROMPT
       console.log('🔍 API Request Payload (sendPrompt):')
       console.log('Knowledge Base:', selectedAgent.id)
-      console.log('Messages:', JSON.stringify(azureMessages, null, 2))
-      console.log('API Params:', JSON.stringify(apiParams, null, 2))
+      console.log('Reasoning Effort:', runtimeSettings.reasoningEffort)
+      console.log('Payload:', JSON.stringify(requestPayload, null, 2))
 
-      const response = await retrieveFromKnowledgeBase(selectedAgent.id, azureMessages, apiParams)
+      const response = await retrieveFromKnowledgeBase(selectedAgent.id, useIntentsFormat ? null : azureMessages, useIntentsFormat ? requestPayload : apiParams)
 
       let assistantText = 'I apologize, but I was unable to generate a response.'
       if (response.response && response.response.length > 0) {

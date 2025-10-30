@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import { ErrorState } from '@/components/shared/error-state'
 import { CreateKnowledgeBaseForm } from '@/components/forms/create-knowledge-base-form'
+import { useEditMode } from '@/lib/edit-mode'
 import { staggerContainer, staggerItem } from '@/lib/motion'
 
 type KnowledgeSource = {
@@ -39,6 +40,7 @@ export function DashboardView({
   onRefresh 
 }: DashboardViewProps) {
   const [showCreateKnowledgeBase, setShowCreateKnowledgeBase] = React.useState(false)
+  const { isEditMode } = useEditMode()
   if (loading) {
     return <DashboardSkeleton />
   }
@@ -118,15 +120,17 @@ export function DashboardView({
               <Button variant="ghost" size="icon" onClick={onRefresh} aria-label="Refresh data">
                 <ArrowClockwise20Regular className="h-4 w-4" />
               </Button>
-              <Button onClick={() => setShowCreateKnowledgeBase(true)}>
-                <Add20Regular className="h-4 w-4 mr-2" />
-                Create knowledge base
-              </Button>
+              {isEditMode && (
+                <Button onClick={() => setShowCreateKnowledgeBase(true)}>
+                  <Add20Regular className="h-4 w-4 mr-2" />
+                  Create knowledge base
+                </Button>
+              )}
             </div>
           </div>
           
           <div className="space-y-4">
-            {showCreateKnowledgeBase && (
+            {isEditMode && showCreateKnowledgeBase && (
               <CreateKnowledgeBaseForm
                 knowledgeSources={knowledgeSources}
                 onSubmit={async () => {
@@ -140,11 +144,11 @@ export function DashboardView({
             {knowledgeBases.length === 0 && !showCreateKnowledgeBase ? (
               <EmptyState
                 title="No knowledge bases"
-                description="Create your first knowledge base to power grounded chat experiences."
-                action={{
+                description={isEditMode ? "Create your first knowledge base to power grounded chat experiences." : "No knowledge bases have been configured yet."}
+                action={isEditMode ? {
                   label: "Create knowledge base",
                   onClick: () => setShowCreateKnowledgeBase(true)
-                }}
+                } : undefined}
               />
             ) : (
               knowledgeBases.map((base) => (

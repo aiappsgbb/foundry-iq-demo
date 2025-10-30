@@ -1,11 +1,12 @@
 'use client'
 
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import { ErrorState } from '@/components/shared/error-state'
 import { EditKnowledgeBaseForm } from '@/components/forms/edit-knowledge-base-form'
+import { useEditMode } from '@/lib/edit-mode'
 
 interface KnowledgeSource {
   name: string
@@ -47,8 +48,7 @@ interface KnowledgeBase {
 export default function EditKnowledgeBasePage() {
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const isEditMode = searchParams?.has('edit-mode') ?? false
+  const { isEditMode } = useEditMode()
   const [kb, setKb] = useState<KnowledgeBase | null>(null)
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([])
   const [loading, setLoading] = useState(true)
@@ -113,8 +113,8 @@ export default function EditKnowledgeBasePage() {
       throw new Error(errorData.error || 'Failed to update knowledge base')
     }
 
-    const toastQuery = isEditMode ? '?edit-mode&status=saved' : '?status=saved'
-    router.push(`/knowledge${toastQuery}`)
+  const toastQuery = isEditMode ? '?edit=admin&status=saved' : '?status=saved'
+  router.push(`/knowledge${toastQuery}`)
   }
 
   const handleDelete = async () => {

@@ -29,7 +29,7 @@ type KnowledgeSourceParam = {
 interface RuntimeSettings {
   knowledgeSourceParams: KnowledgeSourceParam[]
   outputMode?: 'answerSynthesis' | 'extractiveData'
-  reasoningEffort?: 'low' | 'medium' | 'high'
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   globalHeaders?: Record<string, string>
 }
 
@@ -107,7 +107,7 @@ export function RuntimeSettingsPanel({
         ...settings,
         knowledgeSourceParams: initialParams,
         outputMode: hasWebSource ? 'answerSynthesis' : (settings.outputMode || 'answerSynthesis'),
-        reasoningEffort: settings.reasoningEffort || 'low'
+        reasoningEffort: settings.reasoningEffort || 'minimal'
       })
     }
   }, [knowledgeSources, hasWebSource])
@@ -320,14 +320,14 @@ export function RuntimeSettingsPanel({
           )}
         </div>
 
-        {/* Reasoning Effort */}
+        {/* Retrieval Reasoning Effort */}
         <div className="space-y-2">
           <label htmlFor="reasoning-effort" className="text-xs font-medium text-fg-default">
-            Reasoning Effort
+            Retrieval Reasoning Effort
           </label>
           <Select
-            value={settings.reasoningEffort || 'low'}
-            onValueChange={(value: 'low' | 'medium' | 'high') => {
+            value={settings.reasoningEffort || 'minimal'}
+            onValueChange={(value: 'minimal' | 'low' | 'medium' | 'high') => {
               // Prevent selection of 'high' as it's not supported
               if (value === 'high') return
               onSettingsChange({ ...settings, reasoningEffort: value })
@@ -337,6 +337,7 @@ export function RuntimeSettingsPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="minimal">Minimal</SelectItem>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="high" className="opacity-50 cursor-not-allowed" aria-disabled="true">

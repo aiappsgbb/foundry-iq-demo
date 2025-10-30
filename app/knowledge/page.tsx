@@ -23,6 +23,8 @@ import {
   Warning20Regular
 } from '@fluentui/react-icons'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { CreateKnowledgeBaseForm } from '@/components/forms/create-knowledge-base-form'
+import { useEditMode, withEditMode } from '@/lib/edit-mode'
 import Image from 'next/image'
 import { getSourceKindLabel } from '@/lib/sourceKinds'
 
@@ -54,12 +56,14 @@ function KnowledgePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const isEditMode = !!searchParams?.has('edit-mode')
+  const { isEditMode } = useEditMode()
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [foundryAgents, setFoundryAgents] = useState<FoundryAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; kb: KnowledgeBase | null }>({ open: false, kb: null })
+  const [showCreate, setShowCreate] = useState(false)
+  const [sourceStatusMap, setSourceStatusMap] = useState<Record<string, { status: string; lastSync?: string }>>({})
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
 
@@ -71,7 +75,6 @@ function KnowledgePageContent() {
 
   useEffect(() => {
     if (!searchParamsString) return
-
     const params = new URLSearchParams(searchParamsString)
     const status = params.get('status')
     if (status === 'saved') {
@@ -80,9 +83,7 @@ function KnowledgePageContent() {
         title: 'Changes saved',
         description: 'Knowledge base has been updated successfully.'
       })
-
-      const keepEditMode = params.has('edit-mode')
-      router.replace(`/knowledge${keepEditMode ? '?edit-mode' : ''}`)
+      router.replace(withEditMode('/knowledge'))
     }
   }, [router, searchParamsString, toast])
 
@@ -135,6 +136,34 @@ function KnowledgePageContent() {
       }))
 
       setKnowledgeBases(bases)
+
+      // Fetch status for each unique source (parallel, non-blocking)
+      const uniqueSourceNames: string[] = Array.from(new Set(
+        bases.flatMap((b: any) => (b.knowledgeSources || []).map((s: any) => String(s.name)))
+      ))
+      if (uniqueSourceNames.length) {
+        Promise.allSettled(
+          uniqueSourceNames.map(n =>
+            fetch(`/api/knowledge-sources/${encodeURIComponent(n)}/status`)
+              .then(r => (r.ok ? r.json() : null) as any)
+          )
+        ).then(results => {
+          const statusMap: Record<string, { status: string; lastSync?: string }> = {}
+          results.forEach((res, idx) => {
+            const name: string = uniqueSourceNames[idx]
+            if (res.status === 'fulfilled' && res.value) {
+              const v: any = res.value
+              const current = v?.currentSynchronizationState
+              const last = v?.lastSynchronizationState
+              const lastSync: string | undefined = (last?.endTime) || current?.startTime || undefined
+              statusMap[name] = { status: v?.synchronizationStatus || 'unknown', lastSync }
+            } else {
+              statusMap[name] = { status: 'unknown' }
+            }
+          })
+          setSourceStatusMap(statusMap)
+        })
+      }
 
       // Fetch Foundry agents if available
       if (agentsResponse.ok) {
@@ -245,8 +274,22 @@ function KnowledgePageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Knowledge"
-        description="Manage knowledge bases for your agents"
+        description="All Azure AI Search knowledge bases with their sources and models"
+        primaryAction={isEditMode ? {
+          label: showCreate ? 'Hide create form' : 'Create knowledge base',
+          onClick: () => setShowCreate(v => !v)
+        } : undefined}
       />
+
+      {isEditMode && showCreate && (
+        <div className="mb-6">
+          <CreateKnowledgeBaseForm
+            knowledgeSources={Array.from(new Set(knowledgeBases.flatMap(kb => kb.knowledgeSources))).map(s => ({ name: (s as any).name, kind: (s as any).kind }))}
+            onSubmit={async () => { setShowCreate(false); await fetchData() }}
+            onCancel={() => setShowCreate(false)}
+          />
+        </div>
+      )}
 
       {knowledgeBases.length === 0 ? (
         <EmptyState
@@ -263,7 +306,7 @@ function KnowledgePageContent() {
               <div key={kb.id} className="transform-gpu">
                 <Card
                   className="h-[440px] flex flex-col transition-all duration-200 cursor-pointer group relative overflow-hidden border-2 hover:border-accent/50 hover:shadow-xl hover:-translate-y-1"
-                  onClick={() => router.push(`/knowledge/${kb.id}/edit${isEditMode ? '?edit-mode' : ''}`)}
+                  onClick={() => router.push(withEditMode(`/knowledge/${kb.id}/edit`))}
                 >
                   {/* Subtle gradient overlay on hover */}
                   <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -330,9 +373,12 @@ function KnowledgePageContent() {
                                 height={12}
                                 className="object-contain flex-shrink-0"
                               />
-                              <span className="text-xs font-medium text-fg-default truncate max-w-[140px]">
+                              <span className="text-xs font-medium text-fg-default truncate max-w-[140px]" title={source.name}>
                                 {source.name}
                               </span>
+                              {sourceStatusMap[source.name] && (
+                                <span className="text-[10px] text-fg-muted ml-1" title={`Status: ${sourceStatusMap[source.name].status}`}>{sourceStatusMap[source.name].lastSync ? new Date(sourceStatusMap[source.name].lastSync).toLocaleDateString() : ''}</span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -374,15 +420,11 @@ function KnowledgePageContent() {
                       className="w-full h-8 text-xs group-hover:bg-accent group-hover:text-fg-on-accent group-hover:border-accent transition-all duration-200"
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (isEditMode) {
-                          router.push(`/knowledge/${kb.id}/edit?edit-mode`)
-                        } else {
-                          router.push(`/knowledge/${kb.id}/edit`)
-                        }
+                        router.push(withEditMode(`/knowledge/${kb.id}/edit`))
                       }}
                     >
                       <Settings20Regular className="h-3.5 w-3.5 mr-1.5" />
-                      {isEditMode ? 'Configure' : 'View Details'}
+                      {isEditMode ? 'Configure' : 'View'}
                     </Button>
                   </CardFooter>
                 </Card>

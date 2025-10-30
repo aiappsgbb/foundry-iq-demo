@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { createKnowledgeBase } from '@/lib/api'
 import { createKnowledgeBaseSchema, CreateKnowledgeBaseFormData } from '@/lib/validations'
 import { getSourceKindLabel } from '@/lib/sourceKinds'
+import { MODEL_DEPLOYMENTS } from '@/lib/modelOptions'
 
 interface KnowledgeSourceSummary {
   id?: string
@@ -39,7 +40,7 @@ export function CreateKnowledgeBaseForm({
 }: CreateKnowledgeBaseFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedSources, setSelectedSources] = React.useState<string[]>([])
-  const [showAdvanced, setShowAdvanced] = React.useState(false)
+  // Advanced retrieval configuration removed per spec simplification
   const { toast } = useToast()
 
   const form = useForm<z.infer<typeof createKnowledgeBaseSchema>>({
@@ -47,17 +48,12 @@ export function CreateKnowledgeBaseForm({
     defaultValues: {
       name: '',
       description: '',
-      modelDeployment: 'gpt-4o-mini',
+  modelDeployment: 'gpt-4o-mini', // default selection
       sources: [],
       outputModality: 'extractiveData',
       answerInstructions: '',
       retrievalInstructions: '',
-      includeReferences: true,
-      includeReferenceSourceData: false,
-      alwaysQuerySource: false,
-      maxSubQueries: 5,
-      rerankerThreshold: 2.1,
-      includeActivity: true,
+  // Advanced retrieval flags removed
     },
   })
 
@@ -79,29 +75,7 @@ export function CreateKnowledgeBaseForm({
     try {
       setIsSubmitting(true)
 
-      const knowledgeSourcesPayload = selectedSources.map(name => {
-        const sourceConfig: Record<string, unknown> = {
-          name,
-          includeReferences: data.includeReferences,
-        }
-
-        if (showAdvanced) {
-          if (data.includeReferenceSourceData) {
-            sourceConfig.includeReferenceSourceData = data.includeReferenceSourceData
-          }
-          if (data.alwaysQuerySource) {
-            sourceConfig.alwaysQuerySource = data.alwaysQuerySource
-          }
-          if (data.maxSubQueries !== 5) {
-            sourceConfig.maxSubQueries = data.maxSubQueries
-          }
-          if (data.rerankerThreshold !== 2.1) {
-            sourceConfig.rerankerThreshold = data.rerankerThreshold
-          }
-        }
-
-        return sourceConfig
-      })
+      const knowledgeSourcesPayload = selectedSources.map(name => ({ name }))
 
       const payload = {
         name: data.name.trim(),
@@ -124,7 +98,7 @@ export function CreateKnowledgeBaseForm({
             data.outputModality === 'answerSynthesis'
               ? (data.answerInstructions?.trim() || undefined)
               : undefined,
-          includeActivity: showAdvanced ? data.includeActivity : undefined,
+          // includeActivity removed in simplified create flow
         },
       }
 
@@ -241,44 +215,11 @@ export function CreateKnowledgeBaseForm({
                   <SelectTrigger>
                     <SelectValue placeholder="Select a deployment" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4o-mini">
-                      <div>
-                        <div className="font-medium">GPT-4o Mini</div>
-                        <div className="text-xs text-fg-muted">Balanced quality, cost, and latency</div>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="gpt-4o">
-                      <div>
-                        <div className="font-medium">GPT-4o</div>
-                        <div className="text-xs text-fg-muted">Highest quality grounded answers</div>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="gpt-4.1-mini">
-                      <div>
-                        <div className="font-medium">GPT-4.1 Mini</div>
-                        <div className="text-xs text-fg-muted">Fast and efficient</div>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="gpt-4.1">
-                      <div>
-                        <div className="font-medium">GPT-4.1</div>
-                        <div className="text-xs text-fg-muted">Higher quality with moderate cost</div>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="gpt-5-mini">
-                      <div>
-                        <div className="font-medium">GPT-5 Mini</div>
-                        <div className="text-xs text-fg-muted">Latest mini-class deployment</div>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="gpt-5">
-                      <div>
-                        <div className="font-medium">GPT-5</div>
-                        <div className="text-xs text-fg-muted">Latest flagship deployment</div>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
+                    <SelectContent>
+                      {MODEL_DEPLOYMENTS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
                 </Select>
               </FormControl>
               <FormDescription>
@@ -331,20 +272,20 @@ export function CreateKnowledgeBaseForm({
               <FormField name="answerInstructions" error={errors.answerInstructions?.message}>
                 <div className="flex items-center gap-2">
                   <FormLabel>Answer instructions</FormLabel>
-                  <Tooltip content="Add style or formatting guidance for synthesized answers.">
+                  <Tooltip content="Guidance for formatting synthesized answers (only used in answer synthesis mode).">
                     <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
                   </Tooltip>
                 </div>
                 <FormControl>
                   <Textarea
                     {...register('answerInstructions')}
-                    placeholder="e.g., Provide concise answers with numbered steps when relevant."
+                    placeholder="e.g., Start with a concise summary; use bullet points for lists; keep under 3 short paragraphs."
                     rows={3}
                     maxLength={500}
                   />
                 </FormControl>
                 <FormDescription>
-                  Optional guidance for synthesized responses (max 500 characters).
+                  Optional answer formatting guidance (max 500 chars; ignored unless using answer synthesis).
                 </FormDescription>
                 <FormMessage />
               </FormField>
@@ -401,174 +342,28 @@ export function CreateKnowledgeBaseForm({
             </FormField>
           </div>
 
-          {/* Advanced Configuration */}
-          <div className="space-y-4">
-            <div className="border-t border-stroke-divider pt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-2 p-0 h-auto font-medium text-left"
-              >
-                {showAdvanced ? (
-                  <ChevronUp20Regular className="h-4 w-4" />
-                ) : (
-                  <ChevronDown20Regular className="h-4 w-4" />
-                )}
-                <span>Advanced retrieval configuration</span>
-                <Tooltip content="Fine-tune citation behavior and retrieval limits. Defaults are optimized for most scenarios.">
+          {/* Retrieval Instructions (simplified) */}
+          <div className="space-y-4 border-t border-stroke-divider pt-4">
+            <FormField name="retrievalInstructions" error={errors.retrievalInstructions?.message}>
+              <div className="flex items-center gap-2">
+                <FormLabel>Retrieval instructions</FormLabel>
+                <Tooltip content="Hints for how to prioritize and search sources (applies to all modalities).">
                   <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
                 </Tooltip>
-              </Button>
-            </div>
-
-            {showAdvanced && (
-              <div className="space-y-4 ml-4 pl-4 border-l-2 border-stroke-divider">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField name="includeReferences">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Include references</FormLabel>
-                      <Tooltip content="Attach citations to every answer for transparency.">
-                        <Info20Regular className="h-3 w-3 text-fg-muted cursor-help" />
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          {...register('includeReferences')}
-                          className="rounded border-stroke-divider"
-                        />
-                        <span className="text-sm">Show source citations</span>
-                      </label>
-                    </FormControl>
-                  </FormField>
-
-                  <FormField name="includeActivity">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Include activity</FormLabel>
-                      <Tooltip content="Return retrieval diagnostics useful for debugging.">
-                        <Info20Regular className="h-3 w-3 text-fg-muted cursor-help" />
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          {...register('includeActivity')}
-                          className="rounded border-stroke-divider"
-                        />
-                        <span className="text-sm">Attach search activity details</span>
-                      </label>
-                    </FormControl>
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField name="includeReferenceSourceData">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Include source data</FormLabel>
-                      <Tooltip content="Return additional fields from the knowledge source in each citation.">
-                        <Info20Regular className="h-3 w-3 text-fg-muted cursor-help" />
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          {...register('includeReferenceSourceData')}
-                          className="rounded border-stroke-divider"
-                        />
-                        <span className="text-sm">Embed source metadata with citations</span>
-                      </label>
-                    </FormControl>
-                  </FormField>
-
-                  <FormField name="alwaysQuerySource">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Always query sources</FormLabel>
-                      <Tooltip content="Force the knowledge base to query every selected source each time.">
-                        <Info20Regular className="h-3 w-3 text-fg-muted cursor-help" />
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          {...register('alwaysQuerySource')}
-                          className="rounded border-stroke-divider"
-                        />
-                        <span className="text-sm">Query all sources for each request</span>
-                      </label>
-                    </FormControl>
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField name="maxSubQueries" error={errors.maxSubQueries?.message}>
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Max sub-queries</FormLabel>
-                      <Tooltip content="Upper bound on the number of retrieval queries issued per request.">
-                        <Info20Regular className="h-3 w-3 text-fg-muted cursor-help" />
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="20"
-                        {...register('maxSubQueries', { valueAsNumber: true })}
-                        className="w-full"
-                      />
-                    </FormControl>
-                    <FormDescription>Range 1-20 (default 5).</FormDescription>
-                    <FormMessage />
-                  </FormField>
-
-                  <FormField name="rerankerThreshold" error={errors.rerankerThreshold?.message}>
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Reranker threshold</FormLabel>
-                      <Tooltip content="Discard documents with a reranker score below this value.">
-                        <Info20Regular className="h-3 w-3 text-fg-muted cursor-help" />
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        step="0.1"
-                        {...register('rerankerThreshold', { valueAsNumber: true })}
-                        className="w-full"
-                      />
-                    </FormControl>
-                    <FormDescription>Range 0.0-5.0 (default 2.1).</FormDescription>
-                    <FormMessage />
-                  </FormField>
-                </div>
-
-                <FormField name="retrievalInstructions" error={errors.retrievalInstructions?.message}>
-                  <div className="flex items-center gap-2">
-                    <FormLabel>Retrieval instructions</FormLabel>
-                    <Tooltip content="Provide hints for how the system should query and prioritize knowledge.">
-                      <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
-                    </Tooltip>
-                  </div>
-                  <FormControl>
-                    <Textarea
-                      {...register('retrievalInstructions')}
-                      placeholder="e.g., Prioritize latest release notes and official documentation over community content."
-                      rows={3}
-                      maxLength={500}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Optional retrieval guidance (max 500 characters).
-                  </FormDescription>
-                  <FormMessage />
-                </FormField>
               </div>
-            )}
+              <FormControl>
+                <Textarea
+                  {...register('retrievalInstructions')}
+                  placeholder="e.g., Prefer latest official docs; use pricing index for cost queries; ignore archived community posts."
+                  rows={3}
+                  maxLength={500}
+                />
+              </FormControl>
+              <FormDescription>
+                Optional retrieval guidance (max 500 chars).
+              </FormDescription>
+              <FormMessage />
+            </FormField>
           </div>
         </form>
       </FormFrame>

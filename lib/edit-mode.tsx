@@ -6,7 +6,9 @@ import { useState, useEffect } from 'react'
  * Secret key for enabling edit mode
  * Change this to your own secret value
  */
-const EDIT_MODE_SECRET = 'admin2025'
+// Unified edit mode secret token. Activate edit mode via ?edit=admin in URL.
+// Backward compatibility: accept legacy 'admin2025' token if already bookmarked.
+const EDIT_MODE_SECRET = 'admin'
 
 /**
  * Hook to check if edit mode is enabled
@@ -20,8 +22,8 @@ export function useEditMode() {
     // Only runs on client-side
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
-      const editParam = params.get('edit')
-      setIsEditMode(editParam === EDIT_MODE_SECRET)
+  const editParam = params.get('edit')
+  setIsEditMode(editParam === EDIT_MODE_SECRET || editParam === 'admin2025')
     }
   }, [])
 
@@ -44,7 +46,7 @@ export function withEditMode(path: string, currentParams?: URLSearchParams): str
   
   // Check if edit mode is active in current URL
   const currentEditParam = new URLSearchParams(window.location.search).get('edit')
-  if (currentEditParam === EDIT_MODE_SECRET) {
+  if (currentEditParam === EDIT_MODE_SECRET || currentEditParam === 'admin2025') {
     url.searchParams.set('edit', EDIT_MODE_SECRET)
   }
   

@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/toast'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { createKnowledgeBaseSchema, CreateKnowledgeBaseFormData } from '@/lib/validations'
 import { getSourceKindLabel } from '@/lib/sourceKinds'
+import { MODEL_DEPLOYMENTS } from '@/lib/modelOptions'
 
 interface KnowledgeSourceSummary {
   name: string
@@ -98,12 +99,6 @@ export function EditKnowledgeBaseForm({
       outputModality: outputModality as 'extractiveData' | 'answerSynthesis',
       answerInstructions,
       retrievalInstructions: knowledgeBase.retrievalInstructions || '',
-      includeReferences: false,
-      includeReferenceSourceData: false,
-      alwaysQuerySource: false,
-      maxSubQueries: 5,
-      rerankerThreshold: 1.0,
-      includeActivity: false,
     },
   })
 
@@ -275,7 +270,7 @@ export function EditKnowledgeBaseForm({
               <FormField name="modelDeployment">
                 <div className="flex items-center gap-2">
                   <FormLabel required>Azure OpenAI deployment</FormLabel>
-                  <Tooltip content="These are the supported models for knowledge base query planning. Please ensure the one selected is deployed on your Foundry resource.">
+                  <Tooltip content="Select the model deployment used for grounded answers.">
                     <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
                   </Tooltip>
                 </div>
@@ -292,22 +287,19 @@ export function EditKnowledgeBaseForm({
                       <SelectValue placeholder="Select a deployment" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                      <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
-                      <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
-                      <SelectItem value="gpt-5-mini">GPT-5 Mini</SelectItem>
-                      <SelectItem value="gpt-5">GPT-5</SelectItem>
+                      {MODEL_DEPLOYMENTS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </FormControl>
-                <FormDescription>Choose the model that best fits your performance and cost needs.</FormDescription>
+                <FormDescription>Choose the model that best fits performance and cost needs.</FormDescription>
               </FormField>
 
               <FormField name="outputModality">
                 <div className="flex items-center gap-2">
-                  <FormLabel required>Output mode</FormLabel>
-                  <Tooltip content="Extractive returns relevant text chunks from sources. Answer synthesis creates complete, conversational responses.">
+                  <FormLabel required>Output modality</FormLabel>
+                  <Tooltip content="Extractive returns verbatim snippets; answer synthesis crafts new responses.">
                     <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
                   </Tooltip>
                 </div>
@@ -328,7 +320,7 @@ export function EditKnowledgeBaseForm({
                     </SelectContent>
                   </Select>
                 </FormControl>
-                <FormDescription>Choose how responses are formatted and presented.</FormDescription>
+                <FormDescription>Determine how responses are constructed from retrieved knowledge.</FormDescription>
               </FormField>
             </div>
 
@@ -358,20 +350,20 @@ export function EditKnowledgeBaseForm({
               <FormField name="answerInstructions">
                 <div className="flex items-center gap-2">
                   <FormLabel>Answer instructions</FormLabel>
-                  <Tooltip content="Custom guidelines for how the AI should format and present synthesized answers.">
+                  <Tooltip content="Guidance for formatting synthesized answers (only used in answer synthesis mode).">
                     <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
                   </Tooltip>
                 </div>
                 <FormControl>
                   <Textarea
                     {...register('answerInstructions')}
-                    placeholder="e.g., 'Always start with a summary. Use bullet points for lists. Keep responses under 3 paragraphs.'"
-                    rows={4}
+                    placeholder="e.g., Start with a concise summary; use bullet points for lists; keep under 3 short paragraphs."
+                    rows={3}
                     maxLength={500}
                     disabled={!isEditMode}
                   />
                 </FormControl>
-                <FormDescription>Optional instructions to customize response style and tone.</FormDescription>
+                <FormDescription>Optional answer formatting guidance (max 500 chars; ignored unless using answer synthesis).</FormDescription>
               </FormField>
             )}
           </div>
@@ -423,20 +415,20 @@ export function EditKnowledgeBaseForm({
             <FormField name="retrievalInstructions" error={errors.retrievalInstructions?.message}>
               <div className="flex items-center gap-2">
                 <FormLabel>Retrieval instructions</FormLabel>
-                <Tooltip content="Guide how the system prioritizes and searches across knowledge sources for better results.">
+                <Tooltip content="Hints for how to prioritize and search sources (applies to all modalities).">
                   <Info20Regular className="h-4 w-4 text-fg-muted cursor-help" />
                 </Tooltip>
               </div>
               <FormControl>
                 <Textarea
                   {...register('retrievalInstructions')}
-                  placeholder="e.g., 'For product questions, prioritize the documentation source. For pricing, use the pricing database.'"
-                  rows={4}
+                  placeholder="e.g., Prefer latest official docs; use pricing index for cost queries; ignore archived community posts."
+                  rows={3}
                   maxLength={500}
                   disabled={!isEditMode}
                 />
               </FormControl>
-              <FormDescription>Optional instructions to customize how information is retrieved from your sources.</FormDescription>
+              <FormDescription>Optional retrieval guidance (max 500 chars).</FormDescription>
               <FormMessage />
             </FormField>
           </div>
