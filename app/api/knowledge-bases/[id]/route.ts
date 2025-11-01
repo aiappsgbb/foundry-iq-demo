@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT
 const API_KEY = process.env.AZURE_SEARCH_API_KEY
 const API_VERSION = process.env.AZURE_SEARCH_API_VERSION
 
 interface RouteContext {
-  params: { id: string }
+  params: Promise<{ id: string }> | { id: string }
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
+    const params = context.params instanceof Promise ? await context.params : context.params
     const { id } = params
 
     const response = await fetch(`${ENDPOINT}/knowledgebases/${id}?api-version=${API_VERSION}`, {
@@ -33,8 +38,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function PUT(request: NextRequest, { params }: RouteContext) {
+export async function PUT(request: NextRequest, context: RouteContext) {
   try {
+    const params = context.params instanceof Promise ? await context.params : context.params
     const { id } = params
     const body = await request.json()
     if (!body.name) {
@@ -99,8 +105,9 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
+    const params = context.params instanceof Promise ? await context.params : context.params
     const { id } = params
 
     const response = await fetch(`${ENDPOINT}/knowledgebases/${id}?api-version=${API_VERSION}`, {

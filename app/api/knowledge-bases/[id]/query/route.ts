@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT
 const API_KEY = process.env.AZURE_SEARCH_API_KEY
 const API_VERSION = process.env.AZURE_SEARCH_API_VERSION
 
 interface RouteContext {
-  params: { id: string }
+  params: Promise<{ id: string }> | { id: string }
 }
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const params = context.params instanceof Promise ? await context.params : context.params
     const { id } = params
     const body = await request.json()
 

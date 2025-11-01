@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic rendering - this route always needs fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT;
 const API_KEY = process.env.AZURE_SEARCH_API_KEY;
 const API_VERSION = process.env.AZURE_SEARCH_API_VERSION;
 
 interface RouteContext {
-  params: { indexName: string };
+  params: Promise<{ indexName: string }> | { indexName: string };
 }
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
+  const params = context.params instanceof Promise ? await context.params : context.params;
   const { indexName } = params;
   if (!indexName) {
     return NextResponse.json({ error: 'Index name required' }, { status: 400 });

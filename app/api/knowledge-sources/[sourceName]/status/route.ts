@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering - this route always needs fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT
 const API_KEY = process.env.AZURE_SEARCH_API_KEY
 const API_VERSION = process.env.AZURE_SEARCH_API_VERSION
