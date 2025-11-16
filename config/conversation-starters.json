@@ -141,7 +141,7 @@
         {
           "id": "zava-supply-chain-analysis",
           "label": "Supply Chain Analysis with Image",
-          "prompt": "Here is an image of Zava's global production and distribution map. Using the image AND the Zava Corporate PDF, explain how the supply chain works end-to-end. Then identify which of these facilities would face the biggest operational risk during a major marathon weekend in the same city (e.g., St. Louis or Seattle), using marathon road-closure data. Recommend adjustments to shipping or staffing based on both the supply-chain map and the city marathon constraints.",
+          "prompt": "Here is an image of Zava's global production and distribution map. Using the image AND the Zava knowledge base, explain how the supply chain works end-to-end. Then identify which of these facilities would face the biggest operational risk during a major marathon weekend in the same city (e.g., St. Louis or Seattle), using marathon road-closure data. Recommend adjustments to shipping or staffing based on both the supply-chain map and the city marathon constraints.",
           "complexity": "Advanced",
           "tags": ["multi-source", "image-upload", "supply-chain", "marathon"],
           "imageUrl": "/icons/zava-sample-img.png"
