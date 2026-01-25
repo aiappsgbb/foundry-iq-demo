@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { VoiceInput } from '@/components/ui/voice-input'
-import { InlineCitationsText } from '@/components/inline-citations'
+import { InlineCitationsText, SourcesCountButton } from '@/components/inline-citations'
+import { SourcesPanel } from '@/components/sources-panel'
 import { SourceKindIcon } from '@/components/source-kind-icon'
 import { MCPToolCallDisplay } from '@/components/mcp-tool-call-display'
 import { RuntimeSettingsPanel } from '@/components/runtime-settings-panel'
@@ -119,6 +120,13 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [viewCodeOpen, setViewCodeOpen] = useState(false)
+  const [sourcesPanel, setSourcesPanel] = useState<{
+    isOpen: boolean
+    messageId: string | null
+    references: Reference[]
+    activity: Activity[]
+    query?: string
+  }>({ isOpen: false, messageId: null, references: [], activity: [] })
   const [showCostEstimates, setShowCostEstimates] = useState(() => {
     // Load from localStorage
     if (typeof window !== 'undefined') {
@@ -407,29 +415,30 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
       ]
 
       // Transform runtime settings to match API expectations
-      const apiParams: any = {}
-      
+      const apiParams: any = {
+        includeActivity: true  // Always include activity for retrieval journey
+      }
+
       // Add global headers if present
       if (runtimeSettings.globalHeaders && Object.keys(runtimeSettings.globalHeaders).filter(k => k && runtimeSettings.globalHeaders![k]).length > 0) {
         apiParams.globalHeaders = runtimeSettings.globalHeaders
       }
-      
+
       if (runtimeSettings.outputMode) {
         apiParams.outputMode = runtimeSettings.outputMode
       }
-      
+
       if (runtimeSettings.reasoningEffort) {
         // Azure API expects an object with 'kind' property, not a string
         apiParams.retrievalReasoningEffort = {
           kind: runtimeSettings.reasoningEffort
         }
       }
-      
+
       const knowledgeSourceParams = buildKnowledgeSourceParams()
       if (knowledgeSourceParams && knowledgeSourceParams.length > 0) {
         apiParams.knowledgeSourceParams = knowledgeSourceParams
       }
-
 
       // Determine if we should use intents instead of messages
       // When reasoning effort is 'minimal', use intents format
@@ -466,6 +475,16 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
       console.log('Payload:', JSON.stringify(requestPayload, null, 2))
 
       const response = await retrieveFromKnowledgeBase(selectedAgent.id, useIntentsFormat ? null : azureMessages, useIntentsFormat ? requestPayload : apiParams)
+
+      // Debug: Log the full response to see references and activity
+      console.log('🔍 API Response:', {
+        hasReferences: !!(response.references && response.references.length > 0),
+        referencesCount: response.references?.length || 0,
+        hasActivity: !!(response.activity && response.activity.length > 0),
+        activityCount: response.activity?.length || 0,
+        references: response.references,
+        activity: response.activity
+      })
 
       let assistantText = 'I apologize, but I was unable to generate a response.'
       if (response.response && response.response.length > 0) {
@@ -537,6 +556,22 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
   const handleClearChat = () => {
     // Simply clear the messages array - no localStorage involvement
     setMessages([])
+    // Also close sources panel when clearing chat
+    setSourcesPanel({ isOpen: false, messageId: null, references: [], activity: [] })
+  }
+
+  const handleOpenSourcesPanel = (messageId: string, references: Reference[], activity: Activity[], query?: string) => {
+    setSourcesPanel({
+      isOpen: true,
+      messageId,
+      references,
+      activity,
+      query
+    })
+  }
+
+  const handleCloseSourcesPanel = () => {
+    setSourcesPanel(prev => ({ ...prev, isOpen: false }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -569,24 +604,26 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
       ]
 
       // Transform runtime settings to match API expectations
-      const apiParams: any = {}
-      
+      const apiParams: any = {
+        includeActivity: true  // Always include activity for retrieval journey
+      }
+
       // Add global headers if present
       if (runtimeSettings.globalHeaders && Object.keys(runtimeSettings.globalHeaders).filter(k => k && runtimeSettings.globalHeaders![k]).length > 0) {
         apiParams.globalHeaders = runtimeSettings.globalHeaders
       }
-      
+
       if (runtimeSettings.outputMode) {
         apiParams.outputMode = runtimeSettings.outputMode
       }
-      
+
       if (runtimeSettings.reasoningEffort) {
         // Azure API expects an object with 'kind' property, not a string
         apiParams.retrievalReasoningEffort = {
           kind: runtimeSettings.reasoningEffort
         }
       }
-      
+
       const knowledgeSourceParamsSubmit = buildKnowledgeSourceParams()
       if (knowledgeSourceParamsSubmit && knowledgeSourceParamsSubmit.length > 0) {
         apiParams.knowledgeSourceParams = knowledgeSourceParamsSubmit
@@ -602,6 +639,16 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
       console.log('API Params:', JSON.stringify(apiParams, null, 2))
 
       const response = await retrieveFromKnowledgeBase(selectedAgent.id, azureMessages, apiParams)
+
+      // Debug: Log the full response to see references and activity (handleSubmit)
+      console.log('🔍 API Response (handleSubmit):', {
+        hasReferences: !!(response.references && response.references.length > 0),
+        referencesCount: response.references?.length || 0,
+        hasActivity: !!(response.activity && response.activity.length > 0),
+        activityCount: response.activity?.length || 0,
+        references: response.references,
+        activity: response.activity
+      })
 
       let assistantText = 'I apologize, but I was unable to generate a response.'
       if (response.response && response.response.length > 0) {
@@ -800,7 +847,13 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
             </div>
           ) : (
             messages.map((message) => (
-              <MessageBubble key={message.id} message={message} agent={selectedAgent} showCostEstimates={showCostEstimates} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                agent={selectedAgent}
+                showCostEstimates={showCostEstimates}
+                onOpenSources={(refs, activity, query) => handleOpenSourcesPanel(message.id, refs, activity, query)}
+              />
             ))
           )}
 
@@ -855,6 +908,16 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
           </form>
         </div>
       </div>
+
+      {/* Sources Panel - Perplexity-style side panel */}
+      <SourcesPanel
+        isOpen={sourcesPanel.isOpen}
+        onClose={handleCloseSourcesPanel}
+        references={sourcesPanel.references as any}
+        activity={sourcesPanel.activity as any}
+        query={sourcesPanel.query}
+        messageId={sourcesPanel.messageId || ''}
+      />
 
       {/* Right Drawer - Settings Panel */}
       <AnimatePresence>
@@ -953,12 +1016,20 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
   )
 }
 
-function MessageBubble({ message, agent, showCostEstimates }: { message: Message; agent?: KnowledgeAgent; showCostEstimates?: boolean }) {
+function MessageBubble({ message, agent, showCostEstimates, onOpenSources }: {
+  message: Message
+  agent?: KnowledgeAgent
+  showCostEstimates?: boolean
+  onOpenSources?: (refs: Reference[], activity: Activity[], query?: string) => void
+}) {
   const isUser = message.role === 'user'
-  
+
   // Check if we have trace data (new format)
   const hasTraceData = message.activity && message.activity.length > 0 && message.references
-  
+
+  // Filter out MCP tool calls from regular references
+  const regularRefs = message.references?.filter(ref => ref.type !== 'mcpTool') || []
+
   // Extract MCP tool calls from references
   const mcpToolCalls = message.references?.filter(ref => ref.type === 'mcpTool').map(ref => ({
     toolName: ref.toolName || '',
@@ -993,25 +1064,29 @@ function MessageBubble({ message, agent, showCostEstimates }: { message: Message
               <p key={index} className="whitespace-pre-wrap break-words">
                 <InlineCitationsText
                   text={content.text}
-                  references={message.references}
-                  activity={message.activity}
+                  references={message.references as any}
+                  activity={message.activity as any}
                   messageId={message.id}
-                  onActivate={() => {}}
+                  onActivate={() => onOpenSources?.(regularRefs, message.activity || [], isUser ? undefined : message.content[0]?.text)}
                 />
               </p>
             ))}
           </div>
 
-          {/* New Trace Explorer UI */}
-          {!isUser && hasTraceData && (
+          {/* Perplexity-style Sources Button - Opens Drawer */}
+          {!isUser && regularRefs.length > 0 && (
             <div className="mt-4 pt-4 border-t border-stroke-divider">
-              <TraceExplorer
-                response={{
-                  response: [{ role: 'assistant', content: message.content.map(c => ({ type: 'text', text: c.text })) }],
-                  activity: message.activity as any || [],
-                  references: message.references as any || []
-                }}
+              <SourcesCountButton
+                references={regularRefs as any}
+                onClick={() => onOpenSources?.(regularRefs, message.activity || [], isUser ? undefined : message.content[0]?.text)}
               />
+            </div>
+          )}
+
+          {/* Debug info - shows when there are no references */}
+          {!isUser && regularRefs.length === 0 && message.activity && message.activity.length > 0 && (
+            <div className="mt-3 text-[10px] text-fg-muted italic">
+              No sources returned (activity: {message.activity.length} steps)
             </div>
           )}
 
@@ -1026,7 +1101,8 @@ function MessageBubble({ message, agent, showCostEstimates }: { message: Message
             <span>{formatRelativeTime(message.timestamp)}</span>
           </div>
         </div>
-      </div>
+
+              </div>
     </div>
   )
 }

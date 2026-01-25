@@ -274,3 +274,43 @@ export function formatTokenCount(count: number): string {
   if (count < 1000000) return `${(count / 1000).toFixed(1)}K`
   return `${(count / 1000000).toFixed(2)}M`
 }
+
+/**
+ * Extract the search query from an activity record
+ */
+export function getActivityQuery(activity: KnowledgeBaseActivityRecord): string | null {
+  switch (activity.type) {
+    case 'searchIndex':
+      return (activity as any).searchIndexArguments?.search || null
+    case 'azureBlob':
+      return (activity as any).azureBlobArguments?.search || null
+    case 'web':
+      return (activity as any).webArguments?.search || null
+    case 'remoteSharePoint':
+      return (activity as any).remoteSharePointArguments?.search || null
+    case 'indexedSharePoint':
+      return (activity as any).indexedSharePointArguments?.search || null
+    case 'indexedOneLake':
+      return (activity as any).indexedOneLakeArguments?.search || null
+    default:
+      return null
+  }
+}
+
+/**
+ * Get a human-readable summary of retrieval stats
+ */
+export function getRetrievalSummary(activities: KnowledgeBaseActivityRecord[]): {
+  sourceCount: number
+  documentCount: number
+  totalTimeMs: number
+} {
+  const retrievalActivities = activities.filter(isRetrievalActivity) as RetrievalActivityRecord[]
+  const uniqueSources = new Set(retrievalActivities.map(a => a.knowledgeSourceName))
+
+  return {
+    sourceCount: uniqueSources.size,
+    documentCount: retrievalActivities.reduce((sum, a) => sum + a.count, 0),
+    totalTimeMs: activities.reduce((sum, a) => sum + (a.elapsedMs || 0), 0)
+  }
+}

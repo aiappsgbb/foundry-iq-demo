@@ -20,7 +20,8 @@ import {
   Delete20Regular,
   Bot20Regular,
   DocumentDatabase20Regular,
-  Warning20Regular
+  Warning20Regular,
+  Play20Regular
 } from '@fluentui/react-icons'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CreateKnowledgeBaseForm } from '@/components/forms/create-knowledge-base-form'
@@ -306,7 +307,7 @@ function KnowledgePageContent() {
               <div key={kb.id} className="transform-gpu">
                 <Card
                   className="h-[440px] flex flex-col transition-all duration-200 cursor-pointer group relative overflow-hidden border-2 hover:border-accent/50 hover:shadow-xl hover:-translate-y-1"
-                  onClick={() => router.push(withEditMode(`/knowledge/${kb.id}/edit`))}
+                  onClick={() => router.push(`/test?agent=${encodeURIComponent(kb.id)}`)}
                 >
                   {/* Subtle gradient overlay on hover */}
                   <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -413,11 +414,23 @@ function KnowledgePageContent() {
                   </CardContent>
 
                   {/* Minimal Footer */}
-                  <CardFooter className="pt-2 pb-3 flex-shrink-0 relative z-10">
+                  <CardFooter className="pt-2 pb-3 flex-shrink-0 relative z-10 gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1 h-8 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/test?agent=${encodeURIComponent(kb.id)}`)
+                      }}
+                    >
+                      <Play20Regular className="h-3.5 w-3.5 mr-1.5" />
+                      Test
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full h-8 text-xs group-hover:bg-accent group-hover:text-fg-on-accent group-hover:border-accent transition-all duration-200"
+                      className="flex-1 h-8 text-xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         router.push(withEditMode(`/knowledge/${kb.id}/edit`))

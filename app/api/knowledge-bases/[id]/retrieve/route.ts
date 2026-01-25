@@ -73,17 +73,37 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }, { status: response.status })
     }
 
-    // 🔍 DEBUG: Log successful response
-    console.log('✅ [SERVER] Request successful')
-    console.log('Response length:', responseText.length, 'characters')
-    console.log('═══════════════════════════════════════════════════════════')
-
     let data: any = {}
     try {
       data = responseText ? JSON.parse(responseText) : {}
     } catch {
       data = { message: responseText }
     }
+
+    // 🔍 DEBUG: Log successful response with full details
+    console.log('✅ [SERVER] Request successful')
+    console.log('Response length:', responseText.length, 'characters')
+    console.log('───────────────────────────────────────────────────────────')
+    console.log('📊 Response Summary:')
+    console.log('  - Has response:', !!data.response)
+    console.log('  - References count:', data.references?.length || 0)
+    console.log('  - Activity count:', data.activity?.length || 0)
+    if (data.references?.length > 0) {
+      console.log('📚 References:')
+      data.references.forEach((ref: any, idx: number) => {
+        console.log(`  [${idx}] type: ${ref.type}, id: ${ref.id}, hasSourceData: ${!!ref.sourceData}`)
+      })
+    }
+    if (data.activity?.length > 0) {
+      console.log('🔄 Activity:')
+      data.activity.forEach((act: any, idx: number) => {
+        console.log(`  [${idx}] type: ${act.type}, id: ${act.id}, elapsedMs: ${act.elapsedMs}ms`)
+      })
+    }
+    console.log('───────────────────────────────────────────────────────────')
+    console.log('📦 Full Response Data:')
+    console.log(JSON.stringify(data, null, 2))
+    console.log('═══════════════════════════════════════════════════════════')
 
     return NextResponse.json(data)
   } catch (error: any) {
