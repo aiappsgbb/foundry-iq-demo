@@ -16,7 +16,8 @@ import { ViewCodeModal } from '@/components/view-code-modal'
 import { DocumentViewerModal } from '@/components/document-viewer-modal'
 import { SourceKindIcon } from '@/components/source-kind-icon'
 import { aggregateKinds, SourceKind } from '@/lib/sourceKinds'
-import { InlineCitationsText } from '@/components/inline-citations'
+import { InlineCitationsText, SourcesCountButton } from '@/components/inline-citations'
+import { SourcesDrawer } from '@/components/sources-panel'
 import { Tooltip } from '@/components/ui/tooltip'
 import { fetchKnowledgeBases, retrieveFromKnowledgeBase } from '../lib/api'
 import { processImageFile, ProcessedImageResult } from '@/lib/imageProcessing'
@@ -862,11 +863,13 @@ export function PlaygroundView() {
 }
 
 function MessageBubble({ message, onOpenDocument, agent }: { message: Message, onOpenDocument?: (url: string) => void, agent?: KnowledgeAgent }) {
-  const [expanded, setExpanded] = useState(false)
-  
-  // Always show snippets if available (includeReferenceSourceData removed in November API)
-  const shouldShowSnippets = true
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const isUser = message.role === 'user'
+
+  // Get query text for the drawer context
+  const queryText = message.role === 'user'
+    ? message.content.find(c => c.type === 'text')?.text
+    : undefined
 
   return (
     <div className={cn('flex items-start gap-4', isUser && 'flex-row-reverse')}>
@@ -893,12 +896,12 @@ function MessageBubble({ message, onOpenDocument, agent }: { message: Message, o
               if (content.type === 'text') {
                 return (
                   <p key={index} className="whitespace-pre-wrap">
-                    <InlineCitationsText 
+                    <InlineCitationsText
                       text={content.text}
-                      references={message.references}
-                      activity={message.activity}
+                      references={message.references as any}
+                      activity={message.activity as any}
                       messageId={message.id}
-                      onActivate={() => setExpanded(true)}
+                      onActivate={() => setDrawerOpen(true)}
                     />
                   </p>
                 )
@@ -917,130 +920,25 @@ function MessageBubble({ message, onOpenDocument, agent }: { message: Message, o
             })}
           </div>
           
-          {((message.references && message.references.length > 0) || (message.activity && message.activity.length > 0)) && (
+          {/* Sources Button - Opens Drawer */}
+          {message.references && message.references.length > 0 && (
             <div className="mt-4 pt-4 border-t border-stroke-divider">
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-2 text-sm font-medium text-fg-muted hover:text-fg-default"
-              >
-                <span>
-                  {message.references && message.references.length > 0 
-                    ? `${message.references.length} reference${message.references.length > 1 ? 's' : ''}`
-                    : `${message.activity?.length || 0} search${(message.activity?.length || 0) > 1 ? 'es' : ''}`
-                  }
-                </span>
-                {expanded ? (
-                  <ChevronUp20Regular className="h-3 w-3" />
-                ) : (
-                  <ChevronDown20Regular className="h-3 w-3" />
-                )}
-              </button>
-              
-              <AnimatePresence>
-                {expanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="mt-3 space-y-3 overflow-hidden w-full"
-                  >
-                    {/* References */}
-                    {message.references && message.references.length > 0 && (
-                      <div className="space-y-2 w-full">
-                        <h6 className="text-xs font-medium text-fg-muted uppercase tracking-wide">References</h6>
-                        {Array.from(new Map(message.references.map((r, idx) => [r.blobUrl || r.id, { r, idx }])).values()).map(({ r: ref, idx }) => {
-                          const fileName = ref.blobUrl ? decodeURIComponent(ref.blobUrl.split('/').pop() || ref.id) : (ref.docKey || ref.id)
-                          const activity = message.activity?.find(a => a.id === ref.activitySource)
-                          const label = activity?.knowledgeSourceName || fileName
-                          
-                          // Get citation URL for tooltip
-                          const citationUrl = ref.blobUrl || (ref as any).webUrl || (ref as any).url || (ref as any).docUrl || ref.docKey || null
-                          const tooltipText = citationUrl ? `${label}\n\nURL: ${citationUrl}` : label
-                          
-                          return (
-                            <div id={`ref-${message.id}-${idx}`} key={ref.id + (ref.blobUrl || '')} className="p-3 bg-bg-subtle rounded-md group border border-transparent hover:border-accent/40 transition w-full">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="flex items-center gap-1 text-xs font-medium text-accent" title={tooltipText}>
-                                  <SourceKindIcon kind={ref.type} size={14} variant="plain" />
-                                  {label || ref.type}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  {ref.rerankerScore && (
-                                    <span className="text-xs text-fg-muted">{ref.rerankerScore.toFixed(2)}</span>
-                                  )}
-                                  {ref.blobUrl && onOpenDocument && (
-                                    <button
-                                      onClick={() => onOpenDocument(ref.blobUrl!)}
-                                      className="text-[10px] px-2 py-0.5 rounded bg-accent-subtle text-accent hover:bg-accent/20 transition flex items-center gap-1"
-                                      aria-label={`Open source document ${fileName}`}
-                                      title={`Open ${fileName}`}
-                                    >
-                                      <span className="inline-block w-3 h-3">↗</span>
-                                      Open
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="text-xs text-fg-muted break-all" title={fileName}>
-                                <span className="font-medium inline-flex items-center gap-1 max-w-full">
-                                  <span className="truncate max-w-[240px] inline-block align-bottom">{fileName}</span>
-                                </span>
-                              </p>
-                              
-                              {/* Show snippet if available */}
-                              {ref.sourceData?.snippet && (
-                                <div className="mt-3 pt-3 border-t border-stroke-divider w-full">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <div className="text-[10px] font-medium text-fg-muted uppercase tracking-wide">
-                                      Source snippet
-                                    </div>
-                                    <div className="flex-1 h-px bg-stroke-divider"></div>
-                                  </div>
-                                  <div className="text-xs text-fg-default bg-bg-default/30 border border-stroke-divider rounded p-4 max-h-64 overflow-y-auto w-full">
-                                    <div className="leading-relaxed text-fg-muted break-words">
-                                      {cleanTextSnippet(ref.sourceData.snippet)}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                    
-                    {/* Activity */}
-                    {message.activity && message.activity.length > 0 && (
-                      <div className="space-y-2">
-                        <h6 className="text-xs font-medium text-fg-muted uppercase tracking-wide">Search Activity</h6>
-                        {message.activity.filter(act => act.type === 'searchIndex' || act.type === 'azureBlob').map((activity) => (
-                          <div key={activity.id} className="p-3 bg-bg-subtle rounded-md">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-medium text-accent">{activity.type}</span>
-                              <div className="text-xs text-fg-muted space-x-2">
-                                {activity.count !== undefined && <span>{activity.count} results</span>}
-                                {activity.elapsedMs && <span>{activity.elapsedMs}ms</span>}
-                              </div>
-                            </div>
-                            {activity.knowledgeSourceName && (
-                              <p className="text-xs text-fg-muted mb-1">Source: {activity.knowledgeSourceName}</p>
-                            )}
-                            {activity.searchIndexArguments?.search && (
-                              <p className="text-xs text-fg-muted">Query: "{activity.searchIndexArguments.search}"</p>
-                            )}
-                            {activity.azureBlobArguments?.search && (
-                              <p className="text-xs text-fg-muted">Query: "{activity.azureBlobArguments.search}"</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <SourcesCountButton
+                references={message.references as any}
+                onClick={() => setDrawerOpen(true)}
+              />
             </div>
           )}
+
+          {/* Sources Drawer */}
+          <SourcesDrawer
+            isOpen={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            references={message.references as any || []}
+            activity={message.activity as any || []}
+            query={queryText}
+            messageId={message.id}
+          />
           
           <div className="mt-3 flex items-center justify-between text-xs text-fg-muted">
             <span>{formatRelativeTime(message.timestamp)}</span>

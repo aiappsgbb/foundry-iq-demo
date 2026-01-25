@@ -36,4 +36,4 @@ Thumbs.db
 
 
 # HTTP test files
-*.http
+*.http.mcp.json
