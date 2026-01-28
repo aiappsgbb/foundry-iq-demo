@@ -10,7 +10,7 @@ param location string = resourceGroup().location
   'Free'
   'Standard'
 ])
-param sku string = 'Free'
+param sku string = 'Standard'
 
 @description('Tags for the static web app')
 param tags object = {}
