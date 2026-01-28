@@ -221,6 +221,7 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
     repositoryUrl: repositoryUrl
     branch: branch
     repositoryToken: repositoryToken
+    serviceName: 'web' // Matches service name in azure.yaml
   }
 }
 
