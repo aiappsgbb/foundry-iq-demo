@@ -29,11 +29,15 @@ param branch string = 'main'
 param repositoryToken string = ''
 
 @description('Build properties')
-// For hybrid Next.js apps on Azure Static Web Apps, the outputLocation should be empty
-// to let SWA's Oryx builder handle the Next.js hybrid deployment automatically.
+// For azd deploy with hybrid Next.js on Azure Static Web Apps:
+// - appLocation: 'web/' - The subfolder containing the Next.js application source
+// - apiLocation: Leave empty (no standalone API folder)
+// - outputLocation: Leave empty for hybrid Next.js (SWA Oryx builder handles it)
+// - appBuildCommand: Command to build the Next.js app
+// When deploying via azd, these properties inform the SWA deployment process
 // See: https://learn.microsoft.com/en-us/azure/static-web-apps/deploy-nextjs-hybrid
 param buildProperties object = {
-  appLocation: '/'
+  appLocation: 'web'
   apiLocation: ''
   outputLocation: ''
   appBuildCommand: 'npm run build'

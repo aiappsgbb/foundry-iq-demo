@@ -30,11 +30,13 @@ hooks:
     continueOnError: true
 
 # Service definitions
-# For Azure Static Web Apps with hybrid Next.js, the SWA Oryx builder handles the build.
-# We should NOT use prepackage hooks or specify .next/standalone as the dist.
-# The SWA deploy action will build and deploy the app automatically.
+# For Azure Static Web Apps with hybrid Next.js deployment via azd:
+# - Source code is in the 'web/' subfolder to avoid "source and output at root" error
+# - This structure is required by azd for Static Web Apps deployment
+# - SWA's Oryx builder handles the Next.js build automatically on Azure
+# Reference: https://learn.microsoft.com/azure/developer/azure-developer-cli/azd-schema
 services:
   web:
-    project: ./
+    project: ./web
     language: js
     host: staticwebapp
