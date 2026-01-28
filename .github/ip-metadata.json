@@ -1,0 +1,49 @@
+{
+  "name": "Microsoft Foundry IQ Demo",
+  "description": "Agentic RAG demo leveraging Foundry IQ Knowledge Bases and Microsoft Foundry Agent Service, integrating Azure AI Search and Azure OpenAI for knowledge retrieval and agent services.",
+  "maturity": "Silver",
+  "region": "AMER",
+  "industry": "Cross",
+  "owner": "fsunavala",
+  "pattern": [
+    "AI/ML",
+    "Data & Analytics",
+    "Application Innovation",
+    "Cloud Native",
+    "Integration"
+  ],
+  "services": [
+    "Azure OpenAI",
+    "Azure AI Search"
+  ],
+  "tags": [
+    "RAG",
+    "Foundry IQ",
+    "Knowledge Bases",
+    "Agent Service",
+    "Azure",
+    "Demo",
+    "AI",
+    "Search",
+    "Knowledge Retrieval"
+  ],
+  "version": "1.0.0",
+  "createdDate": "2026-01-28",
+  "lastUpdated": "2026-01-28",
+  "license": "MIT",
+  "repository": {
+    "url": "https://github.com/aiappsgbb/foundry-iq-demo",
+    "branch": "main"
+  },
+  "documentation": {
+    "readme": "",
+    "architecture": "",
+    "demo": ""
+  },
+  "contacts": {
+    "technical": [
+      "fsunavala"
+    ],
+    "business": []
+  }
+}
