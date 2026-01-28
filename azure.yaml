@@ -33,6 +33,7 @@ hooks:
 services:
   web:
     project: ./
+    dist: .next/standalone
     language: js
     host: staticwebapp
     hooks:

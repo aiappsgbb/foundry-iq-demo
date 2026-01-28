@@ -32,7 +32,7 @@ param repositoryToken string = ''
 param buildProperties object = {
   appLocation: '/'
   apiLocation: ''
-  outputLocation: '.next'
+  outputLocation: '.next/standalone'
   appBuildCommand: 'npm run build'
   apiBuildCommand: ''
 }

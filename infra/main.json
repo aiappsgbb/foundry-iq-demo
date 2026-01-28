@@ -986,7 +986,7 @@
               "defaultValue": {
                 "appLocation": "/",
                 "apiLocation": "",
-                "outputLocation": ".next",
+                "outputLocation": ".next/standalone",
                 "appBuildCommand": "npm run build",
                 "apiBuildCommand": ""
               },
