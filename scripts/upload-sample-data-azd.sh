@@ -10,10 +10,17 @@ echo "Upload Sample Data (azd)"
 echo "======================================"
 echo ""
 
-# Get environment values from azd
+# Get environment values from azd safely (avoid eval with untrusted input)
 if command -v azd &> /dev/null; then
     echo "Loading environment values from azd..."
-    eval $(azd env get-values 2>/dev/null | grep -E "^AZURE_" || true)
+    # Parse azd env values safely without eval
+    while IFS='=' read -r key value; do
+        case "$key" in
+            AZURE_STORAGE_ACCOUNT_NAME) AZURE_STORAGE_ACCOUNT_NAME="$value" ;;
+            AZURE_SEARCH_ENDPOINT) AZURE_SEARCH_ENDPOINT="$value" ;;
+            AZURE_RESOURCE_GROUP) AZURE_RESOURCE_GROUP="$value" ;;
+        esac
+    done < <(azd env get-values 2>/dev/null | grep -E "^AZURE_" || true)
 fi
 
 # Fallback to environment variables if azd values not available
@@ -21,7 +28,7 @@ STORAGE_ACCOUNT_NAME="${AZURE_STORAGE_ACCOUNT_NAME:-$STORAGE_ACCOUNT_NAME}"
 SEARCH_ENDPOINT="${AZURE_SEARCH_ENDPOINT:-$SEARCH_ENDPOINT}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-$RESOURCE_GROUP}"
 
-if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$SEARCH_ENDPOINT" ]; then
+if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$SEARCH_ENDPOINT" ] || [ -z "$RESOURCE_GROUP" ]; then
     echo "Error: Required environment variables not set."
     echo ""
     echo "This script requires either:"
@@ -29,8 +36,15 @@ if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$SEARCH_ENDPOINT" ]; then
     echo "  2. Environment variables set manually:"
     echo "     export AZURE_STORAGE_ACCOUNT_NAME='your-storage-account'"
     echo "     export AZURE_SEARCH_ENDPOINT='https://your-search.search.windows.net'"
+    echo "     export AZURE_RESOURCE_GROUP='your-resource-group'"
     echo ""
     exit 1
+fi
+
+# Validate SEARCH_ENDPOINT format
+if [[ ! "$SEARCH_ENDPOINT" =~ ^https://[a-zA-Z0-9-]+\.search\.windows\.net/?$ ]]; then
+    echo "Warning: SEARCH_ENDPOINT format may be incorrect: $SEARCH_ENDPOINT"
+    echo "Expected format: https://<service-name>.search.windows.net"
 fi
 
 echo "Configuration:"
@@ -39,18 +53,25 @@ echo "  Search Endpoint: $SEARCH_ENDPOINT"
 echo "  Resource Group: $RESOURCE_GROUP"
 echo ""
 
-# Get storage and search keys using Azure CLI
+# Extract search service name from endpoint with validation
+SEARCH_SERVICE_NAME=$(echo "$SEARCH_ENDPOINT" | sed 's|https://||' | sed 's|\.search\.windows\.net.*||')
+if [ -z "$SEARCH_SERVICE_NAME" ]; then
+    echo "Error: Could not extract search service name from endpoint"
+    exit 1
+fi
+
+# Get search admin key using Azure CLI
 echo "[1/5] Retrieving credentials..."
 SEARCH_ADMIN_KEY=$(az search admin-key show \
     --resource-group "$RESOURCE_GROUP" \
-    --service-name "$(echo $SEARCH_ENDPOINT | sed 's|https://||' | sed 's|.search.windows.net||')" \
-    --query "primaryKey" -o tsv 2>/dev/null || echo "")
-
-if [ -z "$SEARCH_ADMIN_KEY" ]; then
+    --service-name "$SEARCH_SERVICE_NAME" \
+    --query "primaryKey" -o tsv 2>&1) || {
     echo "Warning: Could not retrieve Search admin key. Using Azure CLI auth instead."
-fi
+    echo "  Possible causes: insufficient permissions, incorrect resource group, or service not found."
+    SEARCH_ADMIN_KEY=""
+}
 
-# Step 2: Download sample PDF (Microsoft Responsible AI Transparency Report)
+# Download sample PDF (Microsoft Responsible AI Transparency Report)
 echo ""
 echo "[2/5] Downloading Microsoft Responsible AI Transparency Report..."
 SAMPLE_PDF_URL="https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/msc/documents/presentations/CSR/Responsible-AI-Transparency-Report-2025-vertical.pdf"

@@ -219,7 +219,17 @@ azd env refresh
 | staging     | $250-350            |
 | prod        | $500+               |
 
-Costs vary based on usage, region, and selected SKUs.
+> **⚠️ Disclaimer:** These are rough estimates only. Actual costs will vary significantly based on:
+> - API call volume and data transfer
+> - Storage size and access patterns
+> - Region-specific pricing
+> - Selected SKUs and model capacity
+>
+> **Cost Optimization Tips:**
+> - Use `azd down` to delete dev/staging resources when not in use
+> - Monitor usage in the Azure Cost Management portal
+> - Consider consumption-based tiers where available
+> - Use the Azure Pricing Calculator for detailed estimates
 
 ## Additional Resources
 

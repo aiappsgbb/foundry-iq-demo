@@ -285,18 +285,23 @@ output deploymentSummary object = {
 // Azure Developer CLI (azd) outputs
 // These outputs follow azd naming conventions for environment variable mapping
 // azd automatically sets AZURE_<OUTPUT_NAME> environment variables
+// Reference: https://learn.microsoft.com/azure/developer/azure-developer-cli/
 // =====================================================
 
-// Service endpoint for azd (required for service discovery)
+// Service endpoint for azd service discovery
+// AZURE_STATIC_WEB_APP_NAME: Used by postprovision.sh hook for RBAC configuration
 output AZURE_STATIC_WEB_APP_NAME string = staticWebApp.outputs.staticWebAppName
+// SERVICE_WEB_ENDPOINT_URL: Displayed to users after deployment completion
 output SERVICE_WEB_ENDPOINT_URL string = staticWebApp.outputs.staticWebAppUrl
 
-// Resource names for post-provision hooks
+// Resource names for post-provision hooks (RBAC configuration)
+// Used by infra/hooks/postprovision.sh to configure role assignments
 output AZURE_SEARCH_SERVICE_NAME string = search.outputs.searchServiceName
 output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
 output AZURE_OPENAI_NAME string = openai.outputs.openAIName
 
 // Environment configuration for the web service
+// These values are used by scripts/upload-sample-data-azd.sh
 output AZURE_SEARCH_ENDPOINT string = search.outputs.searchEndpoint
 output AZURE_OPENAI_ENDPOINT string = openai.outputs.openAIEndpoint
 output AZURE_FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint

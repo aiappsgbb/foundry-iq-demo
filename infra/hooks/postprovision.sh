@@ -50,10 +50,11 @@ echo "✓ Static Web App Principal ID: $STATIC_WEB_APP_PRINCIPAL"
 # Get subscription ID
 SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
 
-# Role GUIDs
-COGNITIVE_SERVICES_USER="a97b65f3-24c7-4388-baec-2e87135dc908"
-SEARCH_INDEX_DATA_CONTRIBUTOR="8ebe5a00-799e-43f5-93ac-243d3dce84a7"
-STORAGE_BLOB_DATA_CONTRIBUTOR="ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+# Role GUIDs (Azure built-in roles)
+# Reference: https://learn.microsoft.com/azure/role-based-access-control/built-in-roles
+COGNITIVE_SERVICES_USER="a97b65f3-24c7-4388-baec-2e87135dc908"      # Cognitive Services User
+SEARCH_INDEX_DATA_CONTRIBUTOR="8ebe5a00-799e-43f5-93ac-243d3dce84a7" # Search Index Data Contributor
+STORAGE_BLOB_DATA_CONTRIBUTOR="ba92f5b4-2d11-453d-a403-e96b0029c9fe" # Storage Blob Data Contributor
 
 echo ""
 echo "[2/4] Configuring Search Service RBAC..."
