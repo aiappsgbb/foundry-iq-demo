@@ -10,6 +10,18 @@ Agentic RAG demo with Foundry IQ Knowledge Bases and Microsoft Foundry Agent Ser
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Ffarzad528%2Fazure-ai-search-knowledge-retrieval-demo%2Fmain%2Finfra%2Fmain.json)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ffarzad528%2Fazure-ai-search-knowledge-retrieval-demo)
 
+### Deploy with Azure Developer CLI (azd)
+
+The recommended way to deploy this application is using Azure Developer CLI (azd):
+
+```bash
+# Install azd: https://aka.ms/install-azd
+azd auth login
+azd up
+```
+
+This will provision all required Azure resources and deploy the application. See [AZD Deployment Guide](./docs/AZD_DEPLOYMENT.md) for detailed instructions.
+
 ## Quick Start
 
 ```bash
