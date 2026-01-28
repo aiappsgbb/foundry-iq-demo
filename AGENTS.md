@@ -29,91 +29,87 @@
 
 ```
 /
-├── app/                          # Next.js 14 App Router (✅ MODIFY)
-│   ├── api/                      # API routes for Azure services
-│   │   ├── agents/              # Knowledge Bases API endpoints
-│   │   ├── agentsv2/            # Foundry Agents v2 API (placeholder for future integration)
-│   │   │   ├── connections/     # Remote Tool connections management
-│   │   │   ├── knowledge-bases/ # Knowledge Bases management for Agents v2
-│   │   │   └── responses/       # Single-call response API for Agents v2
-│   │   ├── knowledge-bases/     # Knowledge bases endpoints
-│   │   ├── knowledge-sources/   # Knowledge source management
-│   │   └── index-stats/         # Search index statistics
-│   ├── playground/              # Knowledge Bases playground pages
-│   ├── agents/                  # Foundry agents playground pages
-│   ├── knowledge/               # Knowledge base management pages
-│   ├── knowledge-bases/         # Knowledge base list pages
-│   ├── knowledge-sources/       # Knowledge source pages
-│   ├── agent-builder/           # Agent builder UI
-│   ├── test/                    # ⭐ Test playground for direct KB queries on Search resource
-│   ├── layout.tsx               # Root layout
-│   ├── page.tsx                 # Landing page
-│   ├── error.tsx                # Global error boundary
-│   └── not-found.tsx            # 404 page
-│
-├── components/                   # React components (✅ MODIFY)
-│   ├── ui/                      # Reusable UI primitives (Button, Input, etc.)
-│   ├── forms/                   # Form components (Knowledge Base, Agent forms)
-│   ├── shared/                  # Shared components (EmptyState, ErrorState, etc.)
-│   └── *.tsx                    # Feature-specific components
-│
-├── lib/                         # Utility libraries (✅ MODIFY)
-│   ├── utils.ts                 # Common utilities (cn, formatDate, etc.)
-│   ├── validations.ts           # Zod validation schemas
-│   ├── token-manager.ts         # Azure token management
-│   ├── api.ts                   # API client functions
-│   ├── storage.ts               # Local storage utilities
-│   ├── imageProcessing.ts       # Image processing utilities
-│   ├── sourceKinds.ts           # Knowledge source type definitions
-│   ├── conversationStarters.ts  # Conversation starter templates
-│   └── motion.ts                # Framer Motion variants
-│
-├── types/                       # TypeScript type definitions (✅ MODIFY)
-│   ├── knowledge-source-status.ts
-│   ├── speech.d.ts
-│   └── react-virtuoso.d.ts
-│
-├── public/                      # Static assets (✅ MODIFY)
-│   ├── icons/                   # Icon files
-│   └── *                        # Images, fonts, etc.
+├── web/                          # Next.js application (moved to subfolder for azd compatibility)
+│   ├── app/                      # Next.js 14 App Router (✅ MODIFY)
+│   │   ├── api/                  # API routes for Azure services
+│   │   │   ├── agents/          # Knowledge Bases API endpoints
+│   │   │   ├── agentsv2/        # Foundry Agents v2 API (placeholder for future integration)
+│   │   │   │   ├── connections/ # Remote Tool connections management
+│   │   │   │   ├── knowledge-bases/ # Knowledge Bases management for Agents v2
+│   │   │   │   └── responses/   # Single-call response API for Agents v2
+│   │   │   ├── knowledge-bases/ # Knowledge bases endpoints
+│   │   │   ├── knowledge-sources/ # Knowledge source management
+│   │   │   └── index-stats/     # Search index statistics
+│   │   ├── playground/          # Knowledge Bases playground pages
+│   │   ├── agents/              # Foundry agents playground pages
+│   │   ├── knowledge/           # Knowledge base management pages
+│   │   ├── knowledge-bases/     # Knowledge base list pages
+│   │   ├── knowledge-sources/   # Knowledge source pages
+│   │   ├── agent-builder/       # Agent builder UI
+│   │   ├── test/                # ⭐ Test playground for direct KB queries on Search resource
+│   │   ├── layout.tsx           # Root layout
+│   │   ├── page.tsx             # Landing page
+│   │   ├── error.tsx            # Global error boundary
+│   │   └── not-found.tsx        # 404 page
+│   │
+│   ├── components/               # React components (✅ MODIFY)
+│   │   ├── ui/                  # Reusable UI primitives (Button, Input, etc.)
+│   │   ├── forms/               # Form components (Knowledge Base, Agent forms)
+│   │   ├── shared/              # Shared components (EmptyState, ErrorState, etc.)
+│   │   └── *.tsx                # Feature-specific components
+│   │
+│   ├── lib/                     # Utility libraries (✅ MODIFY)
+│   │   ├── utils.ts             # Common utilities (cn, formatDate, etc.)
+│   │   ├── validations.ts       # Zod validation schemas
+│   │   ├── token-manager.ts     # Azure token management
+│   │   ├── api.ts               # API client functions
+│   │   ├── storage.ts           # Local storage utilities
+│   │   ├── imageProcessing.ts   # Image processing utilities
+│   │   ├── sourceKinds.ts       # Knowledge source type definitions
+│   │   ├── conversationStarters.ts # Conversation starter templates
+│   │   └── motion.ts            # Framer Motion variants
+│   │
+│   ├── types/                   # TypeScript type definitions (✅ MODIFY)
+│   │   ├── knowledge-source-status.ts
+│   │   ├── speech.d.ts
+│   │   └── react-virtuoso.d.ts
+│   │
+│   ├── public/                  # Static assets (✅ MODIFY)
+│   │   ├── icons/               # Icon files
+│   │   └── *                    # Images, fonts, etc.
+│   │
+│   ├── config/                  # Configuration files (✅ MODIFY)
+│   │   ├── conversation-starters.json        # Conversation starter templates
+│   │   └── conversation-starters.schema.json # JSON schema for starters
+│   │
+│   ├── package.json             # Node.js dependencies (✅ MODIFY)
+│   ├── tsconfig.json            # TypeScript configuration (⚠️ MODIFY WITH CAUTION)
+│   ├── next.config.js           # Next.js configuration (⚠️ MODIFY WITH CAUTION)
+│   ├── tailwind.config.js       # TailwindCSS configuration (⚠️ MODIFY WITH CAUTION)
+│   ├── postcss.config.js        # PostCSS configuration (⚠️ MODIFY WITH CAUTION)
+│   ├── staticwebapp.config.json # Azure Static Web Apps config (⚠️ MODIFY WITH CAUTION)
+│   ├── .env.example             # Environment variable template (✅ MODIFY)
+│   └── README.md                # Application documentation (⚠️ MODIFY WITH CAUTION)
 │
 ├── infra/                       # Infrastructure as Code (❌ DO NOT MODIFY)
 │   ├── main.json                # ARM template
+│   ├── main.bicep               # Main Bicep template
 │   └── modules/                 # Bicep modules
+│       └── staticwebapp.bicep   # Static Web App configuration
 │
 ├── docs/                        # Documentation (❌ DO NOT MODIFY)
-├── notebooks/                   # Jupyter notebooks (⚠️ MODIFY WITH CAUTION)
-├── test_docs_01/                # Test documents (⚠️ MODIFY WITH CAUTION)
 ├── scripts/                     # Build/deployment scripts (✅ MODIFY)
-├── specs/                       # Specification documents (⚠️ MODIFY WITH CAUTION)
-├── messages/                    # Message templates (✅ MODIFY)
-├── config/                      # Configuration files (✅ MODIFY)
-│   ├── conversation-starters.json        # Conversation starter templates
-│   └── conversation-starters.schema.json # JSON schema for starters
 │
-├── node_modules/                # Dependencies (❌ DO NOT MODIFY)
-├── .next/                       # Next.js build output (❌ DO NOT MODIFY)
-├── .git/                        # Git internals (❌ DO NOT MODIFY)
 ├── .devcontainer/               # Dev container config (❌ DO NOT MODIFY)
 ├── .github/                     # GitHub Actions workflows (⚠️ MODIFY WITH CAUTION)
 │
-├── package.json                 # Node.js dependencies (✅ MODIFY)
-├── tsconfig.json                # TypeScript configuration (⚠️ MODIFY WITH CAUTION)
-├── next.config.js               # Next.js configuration (⚠️ MODIFY WITH CAUTION)
-├── tailwind.config.js           # TailwindCSS configuration (⚠️ MODIFY WITH CAUTION)
-├── postcss.config.js            # PostCSS configuration (⚠️ MODIFY WITH CAUTION)
+├── azure.yaml                   # Azure Developer CLI configuration (⚠️ MODIFY WITH CAUTION)
 ├── .gitignore                   # Git ignore rules (⚠️ MODIFY WITH CAUTION)
-├── .env.example                 # Environment variable template (✅ MODIFY)
-├── .env.local                   # Local environment variables (❌ DO NOT COMMIT)
-├── README.md                    # Project documentation (⚠️ MODIFY WITH CAUTION)
 ├── AGENTS.md                    # This file (✅ MODIFY)
-├── AZURE_DEPLOYMENT_GUIDE.md    # Azure Static Web Apps deployment guide (✅ MODIFY)
-├── VERCEL_DEPLOYMENT.md         # Vercel deployment guide (✅ MODIFY)
-├── QUICK_START_VERCEL.md        # Quick start for Vercel (✅ MODIFY)
-├── staticwebapp.config.json     # Azure Static Web Apps config (⚠️ MODIFY WITH CAUTION)
-├── vercel.json                  # Vercel deployment config (⚠️ MODIFY WITH CAUTION)
 ├── deploy-to-azure.ps1          # PowerShell deployment script (✅ MODIFY)
-└── configure-env-vars.ps1       # Environment configuration script (✅ MODIFY)
+├── configure-env-vars.ps1       # Environment configuration script (✅ MODIFY)
+├── vercel.json                  # Vercel deployment config (⚠️ MODIFY WITH CAUTION)
+└── tokens.json                  # Token storage (development) (❌ DO NOT COMMIT)
 ```
 
 **Legend:**
@@ -174,6 +170,9 @@
 git clone https://github.com/farzad528/azure-ai-search-knowledge-retrieval-demo.git
 cd azure-ai-search-knowledge-retrieval-demo
 
+# Navigate to web application directory
+cd web
+
 # Install dependencies
 npm install
 ```
@@ -181,7 +180,7 @@ npm install
 ### **Environment Setup**
 
 ```bash
-# Copy environment template
+# Copy environment template (from web/ directory)
 cp .env.example .env.local
 
 # Edit .env.local with your Azure credentials
@@ -190,6 +189,8 @@ cp .env.example .env.local
 ```
 
 ### **Available Commands**
+
+**Note:** All commands must be run from the `web/` directory.
 
 | Command | Description | Usage |
 |---------|-------------|-------|
@@ -202,22 +203,26 @@ cp .env.example .env.local
 ### **Development Workflow**
 
 ```bash
-# 1. Start development server
+# 1. Navigate to web directory
+cd web
+
+# 2. Start development server
 npm run dev
 
-# 2. Open browser
+# 3. Open browser
 # http://localhost:3000
 
-# 3. Make changes (hot reload enabled)
+# 4. Make changes (hot reload enabled)
 
-# 4. Build to verify no errors
+# 5. Build to verify no errors
 npm run build
 
-# 5. Commit changes
+# 6. Commit changes (from repository root)
+cd ..
 git add .
 git commit -m "feat: add new feature"
 
-# 6. Push to GitHub
+# 7. Push to GitHub
 git push origin feature-branch
 ```
 
@@ -227,6 +232,9 @@ git push origin feature-branch
 
 **Manual Testing Strategy:**
 ```bash
+# Navigate to web directory
+cd web
+
 # Build project (serves as type-checking and compile-time validation)
 npm run build
 

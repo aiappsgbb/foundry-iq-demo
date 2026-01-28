@@ -8,7 +8,9 @@ yarn-error.log*
 
 # Next.js
 /.next/
+/web/.next/
 /out/
+/web/out/
 
 # Environment variables
 .env*.local
