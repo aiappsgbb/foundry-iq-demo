@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.38.33.27573",
-      "templateHash": "6313061430549261828"
+      "version": "0.39.26.7824",
+      "templateHash": "16029139001168306305"
     }
   },
   "parameters": {
@@ -120,9 +120,9 @@
     "resourceNames": {
       "search": "[format('{0}-search-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
       "openai": "[format('{0}-openai-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
-      "storage": "[toLower(format('{0}storage{1}', parameters('baseName'), variables('uniqueSuffix')))]",
+      "storage": "[toLower(format('st{0}{1}', parameters('baseName'), take(variables('uniqueSuffix'), sub(sub(24, 2), length(parameters('baseName'))))))]",
       "hub": "[format('{0}-hub-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
-      "project": "[format('{0}-project-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
+      "project": "[format('{0}-prj-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
       "staticWebApp": "[format('{0}-web-{1}', parameters('baseName'), variables('uniqueSuffix'))]"
     },
     "tags": {
@@ -209,8 +209,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "5294857793062549890"
+              "version": "0.39.26.7824",
+              "templateHash": "17738156439170274569"
             }
           },
           "parameters": {
@@ -343,8 +343,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "17010784144092326323"
+              "version": "0.39.26.7824",
+              "templateHash": "16272756388003797212"
             }
           },
           "parameters": {
@@ -555,8 +555,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "10746232780939829241"
+              "version": "0.39.26.7824",
+              "templateHash": "6415171068013202514"
             }
           },
           "parameters": {
@@ -724,8 +724,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "7074958133617667931"
+              "version": "0.39.26.7824",
+              "templateHash": "8864349781703259052"
             }
           },
           "parameters": {
@@ -924,8 +924,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "12097102036641970586"
+              "version": "0.39.26.7824",
+              "templateHash": "18080190975644262137"
             }
           },
           "parameters": {
@@ -1145,6 +1145,38 @@
           "staticWebApp": "[variables('resourceNames').staticWebApp]"
         }
       }
+    },
+    "AZURE_STATIC_WEB_APP_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2025-04-01').outputs.staticWebAppName.value]"
+    },
+    "SERVICE_WEB_ENDPOINT_URL": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2025-04-01').outputs.staticWebAppUrl.value]"
+    },
+    "AZURE_SEARCH_SERVICE_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2025-04-01').outputs.searchServiceName.value]"
+    },
+    "AZURE_STORAGE_ACCOUNT_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value]"
+    },
+    "AZURE_OPENAI_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.openAIName.value]"
+    },
+    "AZURE_SEARCH_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2025-04-01').outputs.searchEndpoint.value]"
+    },
+    "AZURE_OPENAI_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.openAIEndpoint.value]"
+    },
+    "AZURE_FOUNDRY_PROJECT_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2025-04-01').outputs.projectEndpoint.value]"
     }
   }
 }
