@@ -17,6 +17,9 @@ yarn-error.log*
 .env.azure-swa
 DEPLOYMENT_COMPLETE.md
 
+# Azure Developer CLI (azd)
+.azure/
+
 # Production
 /build
 

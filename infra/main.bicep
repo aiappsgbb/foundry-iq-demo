@@ -280,3 +280,23 @@ output deploymentSummary object = {
     staticWebApp: resourceNames.staticWebApp
   }
 }
+
+// =====================================================
+// Azure Developer CLI (azd) outputs
+// These outputs follow azd naming conventions for environment variable mapping
+// azd automatically sets AZURE_<OUTPUT_NAME> environment variables
+// =====================================================
+
+// Service endpoint for azd (required for service discovery)
+output AZURE_STATIC_WEB_APP_NAME string = staticWebApp.outputs.staticWebAppName
+output SERVICE_WEB_ENDPOINT_URL string = staticWebApp.outputs.staticWebAppUrl
+
+// Resource names for post-provision hooks
+output AZURE_SEARCH_SERVICE_NAME string = search.outputs.searchServiceName
+output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
+output AZURE_OPENAI_NAME string = openai.outputs.openAIName
+
+// Environment configuration for the web service
+output AZURE_SEARCH_ENDPOINT string = search.outputs.searchEndpoint
+output AZURE_OPENAI_ENDPOINT string = openai.outputs.openAIEndpoint
+output AZURE_FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint

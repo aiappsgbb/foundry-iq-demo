@@ -1,0 +1,46 @@
+# Azure Developer CLI (azd) configuration
+# This file defines the services and infrastructure for the Foundry IQ Demo application
+
+name: foundry-iq-demo
+metadata:
+  template: foundry-iq-demo@0.1.0
+
+# Infrastructure configuration
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+# Hooks for custom scripts
+hooks:
+  # Post-provision hook to configure RBAC and set up environment
+  postprovision:
+    shell: sh
+    run: |
+      echo "Configuring RBAC permissions..."
+      ./infra/hooks/postprovision.sh
+    continueOnError: false
+
+  # Post-deploy hook to verify deployment
+  postdeploy:
+    shell: sh
+    run: |
+      echo "Deployment completed successfully!"
+      echo "Your application is available at: ${SERVICE_WEB_ENDPOINT_URL}"
+    continueOnError: true
+
+# Service definitions
+services:
+  web:
+    project: ./
+    language: js
+    host: staticwebapp
+    hooks:
+      # Pre-package hook to build the Next.js application
+      prepackage:
+        shell: sh
+        run: |
+          echo "Building Next.js application..."
+          npm ci
+          npm run build
+        continueOnError: false

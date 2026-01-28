@@ -3,31 +3,31 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "baseName": {
-      "value": ""
+      "value": "${AZURE_ENV_NAME}"
     },
     "location": {
-      "value": ""
+      "value": "${AZURE_LOCATION}"
     },
     "environment": {
-      "value": "dev"
+      "value": "${AZURE_ENVIRONMENT=dev}"
     },
     "repositoryUrl": {
-      "value": "https://github.com/farzad528/azure-ai-search-knowledge-retrieval-demo"
+      "value": "${AZURE_REPOSITORY_URL=https://github.com/aiappsgbb/foundry-iq-demo}"
     },
     "branch": {
-      "value": "main"
+      "value": "${AZURE_REPOSITORY_BRANCH=main}"
     },
     "repositoryToken": {
-      "value": ""
+      "value": "${AZURE_REPOSITORY_TOKEN=}"
     },
     "deploySampleData": {
-      "value": true
+      "value": "${AZURE_DEPLOY_SAMPLE_DATA=true}"
     },
     "chatModelName": {
-      "value": "gpt-4o-mini"
+      "value": "${AZURE_CHAT_MODEL=gpt-4o-mini}"
     },
     "embeddingModelName": {
-      "value": "text-embedding-3-small"
+      "value": "${AZURE_EMBEDDING_MODEL=text-embedding-3-small}"
     }
   }
 }
