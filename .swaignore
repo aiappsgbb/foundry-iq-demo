@@ -1,0 +1,80 @@
+# Azure Static Web Apps ignore file
+# Excludes unnecessary files from SWA CLI deployment to improve speed
+# SWA CLI only needs the built output (.next/standalone), static assets, and public folder
+
+# Dependencies (included in standalone output automatically)
+node_modules/
+
+# Next.js build artifacts (not needed for standalone deployment)
+.next/cache/
+
+# Source code directories (only built output is needed)
+app/
+components/
+lib/
+types/
+scripts/
+
+# Development and version control
+.git/
+.github/
+.devcontainer/
+.vscode/
+.idea/
+.claude/
+
+# Infrastructure (not needed at runtime)
+infra/
+
+# Configuration files (not needed at runtime)
+*.config.js
+*.config.ts
+jsconfig.json
+tsconfig.json
+postcss.config.js
+tailwind.config.js
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+
+# HTTP test files
+*.http
+*.http.mcp.json
+
+# Deployment scripts (not needed at runtime)
+deploy-to-azure.ps1
+configure-env-vars.ps1
+azure.yaml
+
+# Vercel-specific files
+.vercelignore
+vercel.json
+
+# Package files (dependencies managed in standalone output)
+package.json
+package-lock.json
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+*.log
+
+# Token files (development only)
+tokens.json
+
+# Config directory (development only)
+config/
