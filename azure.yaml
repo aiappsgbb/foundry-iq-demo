@@ -30,18 +30,11 @@ hooks:
     continueOnError: true
 
 # Service definitions
+# For Azure Static Web Apps with hybrid Next.js, the SWA Oryx builder handles the build.
+# We should NOT use prepackage hooks or specify .next/standalone as the dist.
+# The SWA deploy action will build and deploy the app automatically.
 services:
   web:
     project: ./
-    dist: .next/standalone
     language: js
     host: staticwebapp
-    hooks:
-      # Pre-package hook to build the Next.js application
-      prepackage:
-        shell: sh
-        run: |
-          echo "Building Next.js application..."
-          npm ci
-          npm run build
-        continueOnError: false
