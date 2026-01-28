@@ -15,6 +15,9 @@ param sku string = 'Standard'
 @description('Tags for the static web app')
 param tags object = {}
 
+@description('Azure Developer CLI service name for deployment targeting')
+param serviceName string = 'web'
+
 @description('Repository URL')
 param repositoryUrl string = ''
 
@@ -37,7 +40,7 @@ param buildProperties object = {
 resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
   name: staticWebAppName
   location: location
-  tags: tags
+  tags: union(tags, { 'azd-service-name': serviceName })
   sku: {
     name: sku
     tier: sku
