@@ -73,16 +73,25 @@ var skuMap = {
   }
 }
 
-// Generate unique suffix
+// Generate unique suffix (13 characters)
 var uniqueSuffix = uniqueString(resourceGroup().id)
 
-// Resource naming
+// Resource naming with Azure limits:
+// - Storage Account: 3-24 chars, lowercase alphanumeric only
+// - AI Search: 2-60 chars, lowercase alphanumeric and hyphens
+// - Cognitive Services: 2-64 chars, alphanumeric and hyphens
+// - ML Workspace: 3-33 chars, alphanumeric and hyphens
+// - Static Web App: 2-40 chars, alphanumeric and hyphens
 var resourceNames = {
   search: '${baseName}-search-${uniqueSuffix}'
   openai: '${baseName}-openai-${uniqueSuffix}'
-  storage: toLower('${baseName}storage${uniqueSuffix}')
+  // Storage: max 24 chars, lowercase alphanumeric only. 'st' (2) + baseName (3-10) + suffix.
+  // take() dynamically limits suffix to fit: 24 - 2 - len(baseName) = 12-19 chars of uniqueSuffix (which is 13 chars).
+  // When baseName is 3-11 chars, take() returns all 13 chars of uniqueSuffix since requested amount is >= 13.
+  storage: toLower('st${baseName}${take(uniqueSuffix, 24 - 2 - length(baseName))}')
+  // Hub/Project: max 33 chars. Use shorter suffixes for safety margin.
   hub: '${baseName}-hub-${uniqueSuffix}'
-  project: '${baseName}-project-${uniqueSuffix}'
+  project: '${baseName}-prj-${uniqueSuffix}'
   staticWebApp: '${baseName}-web-${uniqueSuffix}'
 }
 
