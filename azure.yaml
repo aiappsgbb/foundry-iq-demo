@@ -3,7 +3,7 @@
 
 name: foundry-iq-demo
 metadata:
-  template: foundry-iq-demo@0.1.0
+  template: microsoft-foundry-iq-demo@1.0.0
 
 # Infrastructure configuration
 infra:
