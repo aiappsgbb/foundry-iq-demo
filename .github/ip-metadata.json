@@ -38,7 +38,7 @@
   "documentation": {
     "readme": "",
     "architecture": "",
-    "demo": "https://polite-cliff-09088af0f.1.azurestaticapps.net"
+    "demo": "https://polite-cliff-09088af0f.1.azurestaticapps.net/.auth/login/aad"
   },
   "contacts": {
     "technical": [
