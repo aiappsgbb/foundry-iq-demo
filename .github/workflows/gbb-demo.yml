@@ -66,8 +66,6 @@ jobs:
     needs: detect-scope
     runs-on: ubuntu-latest
     environment: "GBB demo"
-    outputs:
-      swa-deployment-token: ${{ steps.get-swa-token.outputs.swa-deployment-token }}
     # azd built-in variables.
     # These variables are always set by `azd pipeline config`
     # You can set them as global env (apply to all steps) or you can add them to individual steps' environment
@@ -182,7 +180,20 @@ jobs:
           AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
           AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.openai-name }}
 
-      - name: Get SWA Deployment Token
+      - name: Upload Sample Data
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            echo "Uploading sample data..."
+            chmod +x ./scripts/upload-sample-data-azd.sh
+            ./scripts/upload-sample-data-azd.sh
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
+          AZURE_SEARCH_ENDPOINT: https://${{ steps.get-azd-values.outputs.search-name }}.search.windows.net
+          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+
+      - name: Get SWA Deployment Token and Deploy
         id: get-swa-token
         uses: azure/cli@v2
         with:
@@ -213,21 +224,11 @@ jobs:
             echo "swa-deployment-token=$DEPLOYMENT_TOKEN" >> $GITHUB_OUTPUT
             echo "Successfully retrieved SWA deployment token"
 
-  build_and_deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    name: Build and Deploy to SWA
-    environment: "GBB demo"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Build And Deploy
+      - name: Build And Deploy to SWA
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ needs.build.outputs.swa-deployment-token }}
+          azure_static_web_apps_api_token: ${{ steps.get-swa-token.outputs.swa-deployment-token }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "/" # App source code path

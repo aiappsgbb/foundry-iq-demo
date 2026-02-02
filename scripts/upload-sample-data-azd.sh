@@ -122,8 +122,34 @@ HOTELS_INDEX_SCHEMA='{
     {"name": "Description", "type": "Edm.String", "searchable": true, "filterable": false, "sortable": false, "facetable": false},
     {"name": "Category", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
     {"name": "Tags", "type": "Collection(Edm.String)", "searchable": true, "filterable": true, "sortable": false, "facetable": true},
-    {"name": "Rating", "type": "Edm.Double", "searchable": false, "filterable": true, "sortable": true, "facetable": true}
-  ]
+    {"name": "Rating", "type": "Edm.Double", "searchable": false, "filterable": true, "sortable": true, "facetable": true},
+    {"name": "Location", "type": "Edm.GeographyPoint", "searchable": false, "filterable": true, "sortable": true, "facetable": false},
+    {"name": "Address", "type": "Edm.ComplexType", "fields": [
+      {"name": "StreetAddress", "type": "Edm.String", "searchable": true},
+      {"name": "City", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
+      {"name": "StateProvince", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
+      {"name": "PostalCode", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true},
+      {"name": "Country", "type": "Edm.String", "searchable": true, "filterable": true, "sortable": true, "facetable": true}
+    ]}
+  ],
+  "semantic": {
+    "configurations": [
+      {
+        "name": "hotel-semantic-config",
+        "prioritizedFields": {
+          "titleField": {
+            "fieldName": "HotelName"
+          },
+          "prioritizedContentFields": [
+            {"fieldName": "Description"}
+          ],
+          "prioritizedKeywordsFields": [
+            {"fieldName": "Tags"}
+          ]
+        }
+      }
+    ]
+  }
 }'
 
 # Get bearer token for Azure Search
@@ -151,7 +177,15 @@ HOTELS_DATA='{
       "Description": "Luxury hotel in downtown with modern amenities and stunning city views. Features include rooftop pool, spa, and fine dining restaurant.",
       "Category": "Luxury",
       "Tags": ["pool", "spa", "restaurant", "wifi", "city-view"],
-      "Rating": 4.8
+      "Rating": 4.8,
+      "Location": {"type": "Point", "coordinates": [-122.131577, 47.678581]},
+      "Address": {
+        "StreetAddress": "123 Cloud Street",
+        "City": "Seattle",
+        "StateProvince": "WA",
+        "PostalCode": "98101",
+        "Country": "USA"
+      }
     },
     {
       "@search.action": "upload",
@@ -160,7 +194,15 @@ HOTELS_DATA='{
       "Description": "Business hotel with state-of-the-art conference facilities and high-speed internet. Perfect for corporate events and tech conferences.",
       "Category": "Business",
       "Tags": ["conference-room", "wifi", "business-center", "parking"],
-      "Rating": 4.5
+      "Rating": 4.5,
+      "Location": {"type": "Point", "coordinates": [-122.335167, 47.608013]},
+      "Address": {
+        "StreetAddress": "456 Intelligence Ave",
+        "City": "Seattle",
+        "StateProvince": "WA",
+        "PostalCode": "98102",
+        "Country": "USA"
+      }
     },
     {
       "@search.action": "upload",
@@ -169,7 +211,15 @@ HOTELS_DATA='{
       "Description": "Beachfront resort with family-friendly activities, water sports, and kids club. Enjoy sunset views from your private balcony.",
       "Category": "Resort",
       "Tags": ["beach", "pool", "kids-club", "water-sports", "ocean-view"],
-      "Rating": 4.7
+      "Rating": 4.7,
+      "Location": {"type": "Point", "coordinates": [-122.389695, 47.611595]},
+      "Address": {
+        "StreetAddress": "789 Reasoning Boulevard",
+        "City": "Bellevue",
+        "StateProvince": "WA",
+        "PostalCode": "98004",
+        "Country": "USA"
+      }
     }
   ]
 }'
@@ -194,8 +244,10 @@ echo "  1. Blob Storage: $CONTAINER_NAME container with sample PDF"
 echo "  2. Search Index: hotels-sample (with 3 documents)"
 echo ""
 echo "Next steps:"
-echo "  1. Visit your app and create a knowledge base"
+echo "  1. Create a knowledge base in the app pointing to:"
+echo "     - Azure Blob: $CONTAINER_NAME container"
+echo "     - Search Index: hotels-sample"
 echo "  2. Test queries like:"
 echo "     - 'What are Microsoft's principles for responsible AI?'"
-echo "     - 'Find hotels with a pool'"
+echo "     - 'Find hotels with a pool in Seattle'"
 echo ""
