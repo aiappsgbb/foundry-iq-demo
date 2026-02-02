@@ -151,19 +151,28 @@ jobs:
       # Skipping azd deploy - SWA doesn't fully work with azd at this moment
       # Using Azure Static Web Apps deploy action instead (see build_and_deploy job)
 
+      - name: Get SWA Name from azd
+        id: get-swa-name
+        run: |
+          # Get the Static Web App name from azd environment
+          SWA_NAME=$(azd env get-value AZURE_STATIC_WEB_APP_NAME)
+          
+          if [ -z "$SWA_NAME" ]; then
+            echo "Error: Could not find AZURE_STATIC_WEB_APP_NAME in azd environment"
+            exit 1
+          fi
+          
+          echo "Static Web App name: $SWA_NAME"
+          echo "swa-name=$SWA_NAME" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Get SWA Deployment Token
         id: get-swa-token
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
-            # Get the Static Web App name from azd environment
-            SWA_NAME=$(azd env get-value AZURE_STATIC_WEB_APP_NAME)
-            
-            if [ -z "$SWA_NAME" ]; then
-              echo "Error: Could not find AZURE_STATIC_WEB_APP_NAME in azd environment"
-              exit 1
-            fi
+            SWA_NAME="${{ steps.get-swa-name.outputs.swa-name }}"
             
             echo "Getting deployment token for Static Web App: $SWA_NAME"
             
