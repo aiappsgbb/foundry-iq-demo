@@ -151,14 +151,44 @@ jobs:
       # Skipping azd deploy - SWA doesn't fully work with azd at this moment
       # Using Azure Static Web Apps deploy action instead (see build_and_deploy job)
 
+      - name: Get azd environment values for postprovision
+        id: get-azd-values
+        run: |
+          # Get environment variables from azd for use in postprovision
+          SWA_NAME=$(azd env get-value AZURE_STATIC_WEB_APP_NAME 2>/dev/null || echo '')
+          if [ -z "$SWA_NAME" ]; then
+            echo "Error: Could not find AZURE_STATIC_WEB_APP_NAME in azd environment"
+            exit 1
+          fi
+          echo "swa-name=$SWA_NAME" >> $GITHUB_OUTPUT
+          echo "search-name=$(azd env get-value AZURE_SEARCH_SERVICE_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "storage-name=$(azd env get-value AZURE_STORAGE_ACCOUNT_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "openai-name=$(azd env get-value AZURE_OPENAI_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Run Postprovision Hook
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            echo "Running postprovision hook..."
+            ./infra/hooks/postprovision.sh
+        env:
+          AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          AZURE_LOCATION: ${{ env.AZURE_LOCATION }}
+          AZURE_STATIC_WEB_APP_NAME: ${{ steps.get-azd-values.outputs.swa-name }}
+          AZURE_SEARCH_SERVICE_NAME: ${{ steps.get-azd-values.outputs.search-name }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
+          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.openai-name }}
+
       - name: Get SWA Deployment Token
         id: get-swa-token
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
-            # Get the Static Web App name from azd environment
-            SWA_NAME=$(azd env get-value AZURE_STATIC_WEB_APP_NAME)
+            SWA_NAME="${{ steps.get-azd-values.outputs.swa-name }}"
             
             if [ -z "$SWA_NAME" ]; then
               echo "Error: Could not find AZURE_STATIC_WEB_APP_NAME in azd environment"
