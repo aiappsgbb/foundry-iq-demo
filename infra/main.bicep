@@ -222,6 +222,15 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
     branch: branch
     repositoryToken: repositoryToken
     serviceName: 'web' // Matches service name in azure.yaml
+    // Environment variables (detected from app/ folder)
+    azureSearchEndpoint: search.outputs.searchEndpoint
+    azureSearchApiKey: search.outputs.searchAdminKey
+    azureSearchApiVersion: '2025-11-01-preview'
+    foundryProjectEndpoint: foundry.outputs.projectEndpoint
+    foundryApiKey: openai.outputs.openAIKey
+    foundryProjectName: foundry.outputs.projectName
+    azureSubscriptionId: subscription().subscriptionId
+    azureResourceGroup: resourceGroup().name
   }
 }
 
@@ -258,19 +267,6 @@ output foundryHubName string = foundry.outputs.hubName
 // Static Web App outputs
 output staticWebAppUrl string = staticWebApp.outputs.staticWebAppUrl
 output staticWebAppName string = staticWebApp.outputs.staticWebAppName
-
-// Environment variables for Static Web App
-output environmentVariables object = {
-  AZURE_SEARCH_ENDPOINT: search.outputs.searchEndpoint
-  AZURE_SEARCH_API_KEY: search.outputs.searchAdminKey
-  AZURE_SEARCH_API_VERSION: '2025-11-01-preview'
-  NEXT_PUBLIC_AZURE_OPENAI_ENDPOINT: openai.outputs.openAIEndpoint
-  AZURE_OPENAI_API_KEY: openai.outputs.openAIKey
-  FOUNDRY_PROJECT_ENDPOINT: foundry.outputs.projectEndpoint
-  FOUNDRY_API_VERSION: '2025-05-01'
-  AZURE_AUTH_METHOD: 'managed-identity'
-  NEXT_PUBLIC_SEARCH_ENDPOINT: search.outputs.searchEndpoint
-}
 
 // Deployment summary
 output deploymentSummary object = {
