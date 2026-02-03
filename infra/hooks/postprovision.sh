@@ -312,7 +312,9 @@ else
                         --arg cs "${STORAGE_CONNECTION_STRING:-}" \
                         --arg endpoint "${OPENAI_ENDPOINT:-}" \
                         --arg apikey "${OPENAI_KEY:-}" \
-                        --arg container "${BLOB_CONTAINER_NAME:-}" '
+                        --arg container "${BLOB_CONTAINER_NAME:-}" \
+                        --arg ai_endpoint "${AI_SERVICES_ENDPOINT:-}" \
+                        --arg ai_key "${AI_SERVICES_KEY:-}" '
                         # Azure Blob parameters
                         if .azureBlobParameters then
                             .azureBlobParameters |= (
@@ -334,11 +336,11 @@ else
                                         if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
                                     )
                                 else . end |
-                                # AI Services
+                                # AI Services (uses AI Services endpoint, NOT OpenAI!)
                                 if .ingestionParameters.aiServices then
                                     .ingestionParameters.aiServices |= (
-                                        if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .uri = $endpoint else . end |
-                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                        if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $ai_endpoint != "" then .uri = $ai_endpoint else . end |
+                                        if .apiKey == "<REDACTED>" and $ai_key != "" then .apiKey = $ai_key else . end
                                     )
                                 else . end
                             )
