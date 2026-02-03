@@ -40,12 +40,14 @@ echo "[1/4] Retrieving Static Web App identity..."
 STATIC_WEB_APP_PRINCIPAL=$(az staticwebapp show -n "$STATIC_WEB_APP_NAME" -g "$AZURE_RESOURCE_GROUP" --query "identity.principalId" -o tsv 2>/dev/null || echo "")
 
 if [ -z "$STATIC_WEB_APP_PRINCIPAL" ] || [ "$STATIC_WEB_APP_PRINCIPAL" == "null" ]; then
-    echo "Warning: Static Web App has no managed identity. Enabling..."
+    echo "  Enabling managed identity on Static Web App..."
     az staticwebapp identity assign -n "$STATIC_WEB_APP_NAME" -g "$AZURE_RESOURCE_GROUP" --output none
     STATIC_WEB_APP_PRINCIPAL=$(az staticwebapp show -n "$STATIC_WEB_APP_NAME" -g "$AZURE_RESOURCE_GROUP" --query "identity.principalId" -o tsv)
+    echo "✓ Static Web App managed identity enabled"
+else
+    echo "✓ Static Web App managed identity already enabled (skipped)"
 fi
-
-echo "✓ Static Web App Principal ID: $STATIC_WEB_APP_PRINCIPAL"
+echo "  Principal ID: $STATIC_WEB_APP_PRINCIPAL"
 
 # Get subscription ID
 SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
@@ -64,12 +66,18 @@ if [ -z "$SEARCH_SERVICE_NAME" ]; then
 fi
 
 if [ -n "$SEARCH_SERVICE_NAME" ]; then
-    az role assignment create \
-        --assignee "$STATIC_WEB_APP_PRINCIPAL" \
-        --role "$SEARCH_INDEX_DATA_CONTRIBUTOR" \
-        --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.Search/searchServices/$SEARCH_SERVICE_NAME" \
-        --output none 2>/dev/null || echo "  (Search role already assigned or failed)"
-    echo "✓ Search Index Data Contributor role assigned"
+    SEARCH_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.Search/searchServices/$SEARCH_SERVICE_NAME"
+    # Check if role already assigned (idempotent)
+    EXISTING_ROLE=$(az role assignment list --assignee "$STATIC_WEB_APP_PRINCIPAL" --role "$SEARCH_INDEX_DATA_CONTRIBUTOR" --scope "$SEARCH_SCOPE" --query "[0].id" -o tsv 2>/dev/null || echo "")
+    if [ -n "$EXISTING_ROLE" ]; then
+        echo "✓ Search Index Data Contributor role already assigned (skipped)"
+    else
+        az role assignment create \
+            --assignee "$STATIC_WEB_APP_PRINCIPAL" \
+            --role "$SEARCH_INDEX_DATA_CONTRIBUTOR" \
+            --scope "$SEARCH_SCOPE" \
+            --output none 2>/dev/null && echo "✓ Search Index Data Contributor role assigned" || echo "⚠ Search role assignment failed (may already exist)"
+    fi
 else
     echo "⚠ No Search service found, skipping RBAC"
 fi
@@ -82,12 +90,18 @@ if [ -z "$STORAGE_ACCOUNT_NAME" ]; then
 fi
 
 if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
-    az role assignment create \
-        --assignee "$STATIC_WEB_APP_PRINCIPAL" \
-        --role "$STORAGE_BLOB_DATA_CONTRIBUTOR" \
-        --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.Storage/storageAccounts/$STORAGE_ACCOUNT_NAME" \
-        --output none 2>/dev/null || echo "  (Storage role already assigned or failed)"
-    echo "✓ Storage Blob Data Contributor role assigned"
+    STORAGE_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.Storage/storageAccounts/$STORAGE_ACCOUNT_NAME"
+    # Check if role already assigned (idempotent)
+    EXISTING_ROLE=$(az role assignment list --assignee "$STATIC_WEB_APP_PRINCIPAL" --role "$STORAGE_BLOB_DATA_CONTRIBUTOR" --scope "$STORAGE_SCOPE" --query "[0].id" -o tsv 2>/dev/null || echo "")
+    if [ -n "$EXISTING_ROLE" ]; then
+        echo "✓ Storage Blob Data Contributor role already assigned (skipped)"
+    else
+        az role assignment create \
+            --assignee "$STATIC_WEB_APP_PRINCIPAL" \
+            --role "$STORAGE_BLOB_DATA_CONTRIBUTOR" \
+            --scope "$STORAGE_SCOPE" \
+            --output none 2>/dev/null && echo "✓ Storage Blob Data Contributor role assigned" || echo "⚠ Storage role assignment failed (may already exist)"
+    fi
 else
     echo "⚠ No Storage account found, skipping RBAC"
 fi
@@ -100,12 +114,18 @@ if [ -z "$OPENAI_NAME" ]; then
 fi
 
 if [ -n "$OPENAI_NAME" ]; then
-    az role assignment create \
-        --assignee "$STATIC_WEB_APP_PRINCIPAL" \
-        --role "$COGNITIVE_SERVICES_USER" \
-        --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.CognitiveServices/accounts/$OPENAI_NAME" \
-        --output none 2>/dev/null || echo "  (OpenAI role already assigned or failed)"
-    echo "✓ Cognitive Services User role assigned"
+    OPENAI_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.CognitiveServices/accounts/$OPENAI_NAME"
+    # Check if role already assigned (idempotent)
+    EXISTING_ROLE=$(az role assignment list --assignee "$STATIC_WEB_APP_PRINCIPAL" --role "$COGNITIVE_SERVICES_USER" --scope "$OPENAI_SCOPE" --query "[0].id" -o tsv 2>/dev/null || echo "")
+    if [ -n "$EXISTING_ROLE" ]; then
+        echo "✓ Cognitive Services User role already assigned (skipped)"
+    else
+        az role assignment create \
+            --assignee "$STATIC_WEB_APP_PRINCIPAL" \
+            --role "$COGNITIVE_SERVICES_USER" \
+            --scope "$OPENAI_SCOPE" \
+            --output none 2>/dev/null && echo "✓ Cognitive Services User role assigned" || echo "⚠ OpenAI role assignment failed (may already exist)"
+    fi
 else
     echo "⚠ No OpenAI service found, skipping RBAC"
 fi
@@ -113,6 +133,9 @@ fi
 # ============================================
 # Step 5: Deploy Azure AI Search Objects
 # ============================================
+# NOTE: All Azure Search operations are idempotent:
+# - PUT creates resource if not exists, updates if exists
+# - Running this script multiple times is safe
 echo ""
 echo "[5/5] Deploying Azure AI Search Objects..."
 
