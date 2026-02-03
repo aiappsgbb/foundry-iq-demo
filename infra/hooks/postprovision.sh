@@ -430,6 +430,12 @@ else
                 [ -f "$json_file" ] || continue
                 local obj_name=$(basename "$json_file" .json)
                 
+                # Skip files starting with "zava" (legacy test data)
+                if [[ "$obj_name" == zava* ]]; then
+                    echo "    ○ Skipping: $obj_name (excluded)"
+                    continue
+                fi
+                
                 # Read and process content (pass object_type for type-specific replacements)
                 local content=$(cat "$json_file")
                 content=$(replace_placeholders "$content" "$object_type")
