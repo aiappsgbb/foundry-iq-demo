@@ -169,6 +169,9 @@ else
         
         API_VERSION="2025-11-01-preview"
         
+        # Track deployment failures
+        DEPLOY_FAILURES=0
+        
         # Function to replace placeholders in JSON content
         replace_placeholders() {
             local content="$1"
@@ -233,7 +236,8 @@ else
                 if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "204" ]; then
                     echo "    ✓ ${display_name}: $obj_name"
                 else
-                    echo "    ⚠ ${display_name} $obj_name failed (HTTP $http_code)"
+                    echo "    ✗ ${display_name} $obj_name failed (HTTP $http_code)"
+                    DEPLOY_FAILURES=$((DEPLOY_FAILURES + 1))
                 fi
             done
         }
@@ -265,7 +269,12 @@ else
             deploy_objects "knowledge-bases" "knowledgebases" "Knowledge Base"
             
             echo ""
-            echo "  ✓ Azure Search deployment complete"
+            if [ "$DEPLOY_FAILURES" -gt 0 ]; then
+                echo "  ✗ Azure Search deployment failed: $DEPLOY_FAILURES object(s) failed"
+                exit 1
+            else
+                echo "  ✓ Azure Search deployment complete"
+            fi
         else
             echo "  ⚠ Azure Search config directory not found: $AZ_SEARCH_DIR"
         fi
