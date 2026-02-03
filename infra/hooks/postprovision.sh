@@ -164,12 +164,32 @@ else
         # Remove trailing slash from OpenAI endpoint if present
         OPENAI_ENDPOINT="${OPENAI_ENDPOINT%/}"
         
+        # Get AI Services (Cognitive Services multi-service) endpoint and key
+        # This is different from Azure OpenAI - used for built-in skills like OCR, language detection
+        AI_SERVICES_NAME=$(az cognitiveservices account list -g "$AZURE_RESOURCE_GROUP" \
+            --query "[?kind=='CognitiveServices'].name | [0]" -o tsv 2>/dev/null || echo "")
+        AI_SERVICES_ENDPOINT=""
+        AI_SERVICES_KEY=""
+        if [ -n "$AI_SERVICES_NAME" ]; then
+            AI_SERVICES_ENDPOINT=$(az cognitiveservices account show \
+                -n "$AI_SERVICES_NAME" \
+                -g "$AZURE_RESOURCE_GROUP" \
+                --query "properties.endpoint" -o tsv 2>/dev/null || echo "")
+            AI_SERVICES_KEY=$(az cognitiveservices account keys list \
+                -n "$AI_SERVICES_NAME" \
+                -g "$AZURE_RESOURCE_GROUP" \
+                --query "key1" -o tsv 2>/dev/null || echo "")
+            AI_SERVICES_ENDPOINT="${AI_SERVICES_ENDPOINT%/}"
+        fi
+        
         echo "  Configuration:"
         echo "    Search Endpoint: $SEARCH_ENDPOINT"
         echo "    Search Admin Key: ****"
         [ -n "$STORAGE_CONNECTION_STRING" ] && echo "    Storage: Connected" || echo "    Storage: Not available"
         [ -n "$OPENAI_ENDPOINT" ] && echo "    OpenAI Endpoint: $OPENAI_ENDPOINT" || echo "    OpenAI: Not available"
         [ -n "$OPENAI_KEY" ] && echo "    OpenAI Key: ****" || echo "    OpenAI Key: Not available"
+        [ -n "$AI_SERVICES_ENDPOINT" ] && echo "    AI Services Endpoint: $AI_SERVICES_ENDPOINT" || echo "    AI Services: Not available (skillsets will use free tier)"
+        [ -n "$AI_SERVICES_KEY" ] && echo "    AI Services Key: ****" || true
         
         # Find Azure Search config directory
         SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -198,24 +218,32 @@ else
                     
                 "skillsets")
                     # Skillsets: replace apiKey, key, resourceUri, uri, subdomainUrl in various locations
+                    # NOTE: cognitiveServices uses AI Services (multi-service), not OpenAI
                     content=$(echo "$content" | jq \
                         --arg endpoint "${OPENAI_ENDPOINT:-}" \
-                        --arg apikey "${OPENAI_KEY:-}" '
+                        --arg apikey "${OPENAI_KEY:-}" \
+                        --arg ai_endpoint "${AI_SERVICES_ENDPOINT:-}" \
+                        --arg ai_key "${AI_SERVICES_KEY:-}" '
                         # Walk through all skills and replace placeholders
                         (.skills // []) |= map(
-                            # Replace resourceUri in embedding skills
+                            # Replace resourceUri in embedding skills (Azure OpenAI)
                             if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                            # Replace uri in ChatCompletionSkill
+                            # Replace uri in ChatCompletionSkill (Azure OpenAI)
                             if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .uri = $endpoint else . end |
-                            # Replace apiKey
+                            # Replace apiKey for Azure OpenAI skills
                             if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
                         ) |
-                        # Replace cognitiveServices settings
+                        # Replace cognitiveServices settings (uses AI Services, not OpenAI!)
                         if .cognitiveServices then
-                            .cognitiveServices |= (
-                                if .subdomainUrl == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .subdomainUrl = $endpoint else . end |
-                                if .key == "<REDACTED>" and $apikey != "" then .key = $apikey else . end
-                            )
+                            if $ai_endpoint != "" and $ai_key != "" then
+                                .cognitiveServices |= (
+                                    if .subdomainUrl == "<AZURE_ENDPOINT_PLACEHOLDER>" then .subdomainUrl = $ai_endpoint else . end |
+                                    if .key == "<REDACTED>" then .key = $ai_key else . end
+                                )
+                            else
+                                # No AI Services available - remove cognitiveServices to use free tier
+                                del(.cognitiveServices)
+                            end
                         else . end
                     ')
                     ;;
