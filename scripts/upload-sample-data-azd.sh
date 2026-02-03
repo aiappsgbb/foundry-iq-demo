@@ -62,6 +62,9 @@ fi
 
 # Get search admin key using Azure CLI
 echo "[1/5] Retrieving credentials..."
+
+az account show
+
 SEARCH_ADMIN_KEY=$(az search admin-key show \
     --resource-group "$RESOURCE_GROUP" \
     --service-name "$SEARCH_SERVICE_NAME" \
