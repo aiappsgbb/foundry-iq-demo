@@ -8,7 +8,7 @@
   "searchIndexParameters": null,
   "azureBlobParameters": {
     "connectionString": "<REDACTED>",
-    "containerName": "kr-demos",
+    "containerName": "<BLOB_CONTAINER_PLACEHOLDER>",
     "folderPath": "manufacturing/manuals/",
     "isADLSGen2": false,
     "ingestionParameters": {

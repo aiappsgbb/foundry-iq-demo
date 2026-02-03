@@ -10,7 +10,7 @@
     "connectionString": null
   },
   "container": {
-    "name": "kr-demos",
+    "name": "<BLOB_CONTAINER_PLACEHOLDER>",
     "query": "financial-services/filings/"
   },
   "dataChangeDetectionPolicy": null,

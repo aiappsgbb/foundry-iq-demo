@@ -221,48 +221,33 @@ else
         
         API_VERSION="2025-11-01-preview"
         
+        # Default blob container name for all datasources/knowledge-sources
+        # Can be overridden via AZURE_BLOB_CONTAINER_NAME environment variable
+        BLOB_CONTAINER_NAME="${AZURE_BLOB_CONTAINER_NAME:-foundry-iq-data}"
+        echo "    Blob Container: $BLOB_CONTAINER_NAME"
+        
         # ============================================
-        # Create required blob containers before deploying datasources
+        # Create required blob container before deploying datasources
         # ============================================
         if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
             echo ""
-            echo "  Creating required blob containers..."
+            echo "  Creating blob container..."
             
-            # Extract unique container names from datasource files
-            CONTAINERS=""
-            if [ -d "$AZ_SEARCH_DIR/datasources" ]; then
-                CONTAINERS=$(find "$AZ_SEARCH_DIR/datasources" -name "*.json" -exec jq -r '.container.name // empty' {} \; 2>/dev/null | sort -u)
-            fi
+            # Check if container exists (idempotent)
+            EXISTS=$(az storage container exists \
+                --account-name "$STORAGE_ACCOUNT_NAME" \
+                --name "$BLOB_CONTAINER_NAME" \
+                --auth-mode login \
+                --query "exists" -o tsv 2>/dev/null || echo "false")
             
-            # Also extract containers from knowledge-sources (azureBlobParameters.containerName)
-            if [ -d "$AZ_SEARCH_DIR/knowledge-sources" ]; then
-                KS_CONTAINERS=$(find "$AZ_SEARCH_DIR/knowledge-sources" -name "*.json" -exec jq -r '.azureBlobParameters.containerName // empty' {} \; 2>/dev/null | sort -u)
-                CONTAINERS=$(echo -e "$CONTAINERS\n$KS_CONTAINERS" | sort -u | grep -v '^$')
-            fi
-            
-            if [ -z "$CONTAINERS" ]; then
-                echo "    No containers to create"
+            if [ "$EXISTS" = "true" ]; then
+                echo "    ✓ Container '$BLOB_CONTAINER_NAME' already exists (skipped)"
             else
-                for container in $CONTAINERS; do
-                    if [ -n "$container" ]; then
-                        # Check if container exists (idempotent)
-                        EXISTS=$(az storage container exists \
-                            --account-name "$STORAGE_ACCOUNT_NAME" \
-                            --name "$container" \
-                            --auth-mode login \
-                            --query "exists" -o tsv 2>/dev/null || echo "false")
-                        
-                        if [ "$EXISTS" = "true" ]; then
-                            echo "    ✓ Container '$container' already exists (skipped)"
-                        else
-                            az storage container create \
-                                --account-name "$STORAGE_ACCOUNT_NAME" \
-                                --name "$container" \
-                                --auth-mode login \
-                                --output none 2>/dev/null && echo "    ✓ Container '$container' created" || echo "    ⚠ Failed to create container '$container'"
-                        fi
-                    fi
-                done
+                az storage container create \
+                    --account-name "$STORAGE_ACCOUNT_NAME" \
+                    --name "$BLOB_CONTAINER_NAME" \
+                    --auth-mode login \
+                    --output none 2>/dev/null && echo "    ✓ Container '$BLOB_CONTAINER_NAME' created" || echo "    ⚠ Failed to create container"
             fi
         fi
         
@@ -276,12 +261,17 @@ else
             
             case "$object_type" in
                 "datasources")
-                    # Datasources: set credentials.connectionString
-                    if [ -n "$STORAGE_CONNECTION_STRING" ]; then
-                        content=$(echo "$content" | jq --arg cs "$STORAGE_CONNECTION_STRING" '
-                            .credentials.connectionString = $cs
-                        ')
-                    fi
+                    # Datasources: set credentials.connectionString and container name
+                    content=$(echo "$content" | jq \
+                        --arg cs "${STORAGE_CONNECTION_STRING:-}" \
+                        --arg container "${BLOB_CONTAINER_NAME:-}" '
+                        # Set connection string
+                        if $cs != "" then .credentials.connectionString = $cs else . end |
+                        # Replace container name placeholder
+                        if .container.name == "<BLOB_CONTAINER_PLACEHOLDER>" and $container != "" then
+                            .container.name = $container
+                        else . end
+                    ')
                     ;;
                     
                 "skillsets")
@@ -317,16 +307,19 @@ else
                     ;;
                     
                 "knowledge-sources")
-                    # Knowledge Sources: replace connectionString and nested OpenAI params
+                    # Knowledge Sources: replace connectionString, containerName, and nested OpenAI params
                     content=$(echo "$content" | jq \
                         --arg cs "${STORAGE_CONNECTION_STRING:-}" \
                         --arg endpoint "${OPENAI_ENDPOINT:-}" \
-                        --arg apikey "${OPENAI_KEY:-}" '
+                        --arg apikey "${OPENAI_KEY:-}" \
+                        --arg container "${BLOB_CONTAINER_NAME:-}" '
                         # Azure Blob parameters
                         if .azureBlobParameters then
                             .azureBlobParameters |= (
                                 # Connection string
                                 if (.connectionString == "<REDACTED>" or .connectionString == null) and $cs != "" then .connectionString = $cs else . end |
+                                # Container name placeholder
+                                if .containerName == "<BLOB_CONTAINER_PLACEHOLDER>" and $container != "" then .containerName = $container else . end |
                                 # Embedding model
                                 if .ingestionParameters.embeddingModel.azureOpenAIParameters then
                                     .ingestionParameters.embeddingModel.azureOpenAIParameters |= (

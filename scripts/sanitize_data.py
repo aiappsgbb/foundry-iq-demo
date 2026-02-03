@@ -59,6 +59,10 @@ URL_KEYS = {
 
 REDACTED_PLACEHOLDER = "<REDACTED>"
 URL_PLACEHOLDER = "<AZURE_ENDPOINT_PLACEHOLDER>"
+CONTAINER_PLACEHOLDER = "<BLOB_CONTAINER_PLACEHOLDER>"
+
+# Legacy container names to replace with placeholder
+LEGACY_CONTAINER_NAMES = {"kr-demos", "sample-documents", "foundry-iq-data"}
 
 
 def should_redact_key(key: str) -> bool:
@@ -107,15 +111,23 @@ def sanitize_value(key: str, value: Any) -> Any:
     return value
 
 
-def sanitize_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+def sanitize_dict(data: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
     """Recursively sanitize a dictionary."""
     result = {}
     for key, value in data.items():
         if isinstance(value, dict):
-            result[key] = sanitize_dict(value)
+            result[key] = sanitize_dict(value, key)
         elif isinstance(value, list):
             result[key] = sanitize_list(key, value)
         else:
+            # Special handling for container name fields
+            key_lower = key.lower()
+            if key_lower in ("name", "containername"):
+                # Check if this is a container name field
+                if parent_key.lower() == "container" or key_lower == "containername":
+                    if isinstance(value, str) and value in LEGACY_CONTAINER_NAMES:
+                        result[key] = CONTAINER_PLACEHOLDER
+                        continue
             result[key] = sanitize_value(key, value)
     return result
 
@@ -125,7 +137,7 @@ def sanitize_list(parent_key: str, data: List[Any]) -> List[Any]:
     result = []
     for item in data:
         if isinstance(item, dict):
-            result.append(sanitize_dict(item))
+            result.append(sanitize_dict(item, parent_key))
         elif isinstance(item, list):
             result.append(sanitize_list(parent_key, item))
         else:
@@ -142,7 +154,7 @@ def sanitize_file(file_path: Path, dry_run: bool = False) -> bool:
         print(f"  ⚠ Skipping {file_path.name}: {e}")
         return False
 
-    sanitized = sanitize_dict(data) if isinstance(data, dict) else sanitize_list("", data)
+    sanitized = sanitize_dict(data, "") if isinstance(data, dict) else sanitize_list("", data)
 
     if dry_run:
         # Show diff summary
