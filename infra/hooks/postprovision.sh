@@ -337,11 +337,17 @@ else
                                     )
                                 else . end |
                                 # AI Services (uses AI Services endpoint, NOT OpenAI!)
+                                # If AI Services not available, remove aiServices section entirely
                                 if .ingestionParameters.aiServices then
-                                    .ingestionParameters.aiServices |= (
-                                        if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $ai_endpoint != "" then .uri = $ai_endpoint else . end |
-                                        if .apiKey == "<REDACTED>" and $ai_key != "" then .apiKey = $ai_key else . end
-                                    )
+                                    if $ai_endpoint != "" and $ai_key != "" then
+                                        .ingestionParameters.aiServices |= (
+                                            if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" then .uri = $ai_endpoint else . end |
+                                            if .apiKey == "<REDACTED>" then .apiKey = $ai_key else . end
+                                        )
+                                    else
+                                        # No AI Services available - remove aiServices to use free tier
+                                        .ingestionParameters.aiServices = null
+                                    end
                                 else . end
                             )
                         else . end |
