@@ -1,0 +1,20 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE62B331D6C799\"",
+  "name": "manufacturing-manuals-source-datasource",
+  "description": "Data source for knowledge source 'manufacturing-manuals-source'",
+  "type": "azureblob",
+  "subtype": null,
+  "indexerPermissionOptions": [],
+  "credentials": {
+    "connectionString": null
+  },
+  "container": {
+    "name": "kr-demos",
+    "query": "manufacturing/manuals/"
+  },
+  "dataChangeDetectionPolicy": null,
+  "dataDeletionDetectionPolicy": null,
+  "encryptionKey": null,
+  "identity": null
+}

@@ -1,0 +1,20 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE62B31679BD31\"",
+  "name": "financial-filings-source-datasource",
+  "description": "Data source for knowledge source 'financial-filings-source'",
+  "type": "azureblob",
+  "subtype": null,
+  "indexerPermissionOptions": [],
+  "credentials": {
+    "connectionString": null
+  },
+  "container": {
+    "name": "kr-demos",
+    "query": "financial-services/filings/"
+  },
+  "dataChangeDetectionPolicy": null,
+  "dataDeletionDetectionPolicy": null,
+  "encryptionKey": null,
+  "identity": null
+}

@@ -1,0 +1,189 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD08CC2FF0\"",
+  "name": "financial-bulletins-source-index",
+  "description": "Search index for knowledge source 'financial-bulletins-source'",
+  "defaultScoringProfile": null,
+  "permissionFilterOption": null,
+  "purviewEnabled": null,
+  "fields": [
+    {
+      "name": "uid",
+      "type": "Edm.String",
+      "searchable": true,
+      "filterable": false,
+      "retrievable": true,
+      "stored": true,
+      "sortable": true,
+      "facetable": false,
+      "key": true,
+      "indexAnalyzer": null,
+      "searchAnalyzer": null,
+      "analyzer": "keyword",
+      "normalizer": null,
+      "dimensions": null,
+      "vectorSearchProfile": null,
+      "vectorEncoding": null,
+      "permissionFilter": null,
+      "sensitivityLabel": null,
+      "synonymMaps": []
+    },
+    {
+      "name": "snippet_parent_id",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true,
+      "retrievable": true,
+      "stored": true,
+      "sortable": false,
+      "facetable": false,
+      "key": false,
+      "indexAnalyzer": null,
+      "searchAnalyzer": null,
+      "analyzer": null,
+      "normalizer": null,
+      "dimensions": null,
+      "vectorSearchProfile": null,
+      "vectorEncoding": null,
+      "permissionFilter": null,
+      "sensitivityLabel": null,
+      "synonymMaps": []
+    },
+    {
+      "name": "blob_url",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true,
+      "retrievable": true,
+      "stored": true,
+      "sortable": false,
+      "facetable": false,
+      "key": false,
+      "indexAnalyzer": null,
+      "searchAnalyzer": null,
+      "analyzer": null,
+      "normalizer": null,
+      "dimensions": null,
+      "vectorSearchProfile": null,
+      "vectorEncoding": null,
+      "permissionFilter": null,
+      "sensitivityLabel": null,
+      "synonymMaps": []
+    },
+    {
+      "name": "snippet",
+      "type": "Edm.String",
+      "searchable": true,
+      "filterable": false,
+      "retrievable": true,
+      "stored": true,
+      "sortable": false,
+      "facetable": false,
+      "key": false,
+      "indexAnalyzer": null,
+      "searchAnalyzer": null,
+      "analyzer": null,
+      "normalizer": null,
+      "dimensions": null,
+      "vectorSearchProfile": null,
+      "vectorEncoding": null,
+      "permissionFilter": null,
+      "sensitivityLabel": null,
+      "synonymMaps": []
+    },
+    {
+      "name": "snippet_vector",
+      "type": "Collection(Edm.Single)",
+      "searchable": true,
+      "filterable": false,
+      "retrievable": true,
+      "stored": true,
+      "sortable": false,
+      "facetable": false,
+      "key": false,
+      "indexAnalyzer": null,
+      "searchAnalyzer": null,
+      "analyzer": null,
+      "normalizer": null,
+      "dimensions": 3072,
+      "vectorSearchProfile": "financial-bulletins-source-vector-search-profile",
+      "vectorEncoding": null,
+      "permissionFilter": null,
+      "sensitivityLabel": null,
+      "synonymMaps": []
+    }
+  ],
+  "scoringProfiles": [],
+  "corsOptions": null,
+  "suggesters": [],
+  "analyzers": [],
+  "normalizers": [],
+  "tokenizers": [],
+  "tokenFilters": [],
+  "charFilters": [],
+  "encryptionKey": null,
+  "similarity": {
+    "@odata.type": "#Microsoft.Azure.Search.BM25Similarity",
+    "k1": null,
+    "b": null
+  },
+  "semantic": {
+    "defaultConfiguration": "financial-bulletins-source-semantic-configuration",
+    "configurations": [
+      {
+        "name": "financial-bulletins-source-semantic-configuration",
+        "flightingOptIn": false,
+        "rankingOrder": "BoostedRerankerScore",
+        "prioritizedFields": {
+          "titleField": null,
+          "prioritizedContentFields": [
+            {
+              "fieldName": "snippet"
+            }
+          ],
+          "prioritizedKeywordsFields": []
+        }
+      }
+    ]
+  },
+  "vectorSearch": {
+    "algorithms": [
+      {
+        "name": "financial-bulletins-source-vector-search-algorithm",
+        "kind": "hnsw",
+        "hnswParameters": {
+          "metric": "cosine",
+          "m": 4,
+          "efConstruction": 400,
+          "efSearch": 500
+        },
+        "exhaustiveKnnParameters": null
+      }
+    ],
+    "profiles": [
+      {
+        "name": "financial-bulletins-source-vector-search-profile",
+        "algorithm": "financial-bulletins-source-vector-search-algorithm",
+        "vectorizer": "financial-bulletins-source-vectorizer",
+        "compression": null
+      }
+    ],
+    "vectorizers": [
+      {
+        "name": "financial-bulletins-source-vectorizer",
+        "kind": "azureOpenAI",
+        "azureOpenAIParameters": {
+          "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+          "deploymentId": "text-embedding-3-large",
+          "apiKey": "<REDACTED>",
+          "modelName": "text-embedding-3-large",
+          "authIdentity": null
+        },
+        "customWebApiParameters": null,
+        "aiServicesVisionParameters": null,
+        "amlParameters": null
+      }
+    ],
+    "compressions": []
+  }
+}

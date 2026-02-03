@@ -1,0 +1,20 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE62B317644DBC\"",
+  "name": "healthcare-labels-source-datasource",
+  "description": "Data source for knowledge source 'healthcare-labels-source'",
+  "type": "azureblob",
+  "subtype": null,
+  "indexerPermissionOptions": [],
+  "credentials": {
+    "connectionString": null
+  },
+  "container": {
+    "name": "kr-demos",
+    "query": "healthcare/labels/"
+  },
+  "dataChangeDetectionPolicy": null,
+  "dataDeletionDetectionPolicy": null,
+  "encryptionKey": null,
+  "identity": null
+}

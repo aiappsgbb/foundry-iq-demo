@@ -1,0 +1,20 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE62B32F41C5FD\"",
+  "name": "manufacturing-ads-source-datasource",
+  "description": "Data source for knowledge source 'manufacturing-ads-source'",
+  "type": "azureblob",
+  "subtype": null,
+  "indexerPermissionOptions": [],
+  "credentials": {
+    "connectionString": null
+  },
+  "container": {
+    "name": "kr-demos",
+    "query": "manufacturing/ads/"
+  },
+  "dataChangeDetectionPolicy": null,
+  "dataDeletionDetectionPolicy": null,
+  "encryptionKey": null,
+  "identity": null
+}

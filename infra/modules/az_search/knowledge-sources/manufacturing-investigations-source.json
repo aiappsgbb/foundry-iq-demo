@@ -1,0 +1,49 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD09366144\"",
+  "name": "manufacturing-investigations-source",
+  "kind": "azureBlob",
+  "description": "NTSB accident reports and safety investigation findings",
+  "encryptionKey": null,
+  "searchIndexParameters": null,
+  "azureBlobParameters": {
+    "connectionString": "<REDACTED>",
+    "containerName": "kr-demos",
+    "folderPath": "manufacturing/investigations/",
+    "isADLSGen2": false,
+    "ingestionParameters": {
+      "disableImageVerbalization": false,
+      "ingestionPermissionOptions": [],
+      "contentExtractionMode": "minimal",
+      "identity": null,
+      "embeddingModel": {
+        "kind": "azureOpenAI",
+        "azureOpenAIParameters": {
+          "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+          "deploymentId": "text-embedding-3-large",
+          "apiKey": "<REDACTED>",
+          "modelName": "text-embedding-3-large",
+          "authIdentity": null
+        }
+      },
+      "chatCompletionModel": null,
+      "ingestionSchedule": null,
+      "assetStore": null,
+      "aiServices": {
+        "uri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+        "apiKey": "<REDACTED>"
+      }
+    },
+    "createdResources": {
+      "datasource": "manufacturing-investigations-source-datasource",
+      "indexer": "manufacturing-investigations-source-indexer",
+      "skillset": "manufacturing-investigations-source-skillset",
+      "index": "manufacturing-investigations-source-index"
+    }
+  },
+  "mcpToolParameters": null,
+  "webParameters": null,
+  "remoteSharePointParameters": null,
+  "indexedSharePointParameters": null,
+  "indexedOneLakeParameters": null
+}

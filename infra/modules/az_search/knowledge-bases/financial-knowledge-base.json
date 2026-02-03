@@ -1,0 +1,31 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD08F975A7\"",
+  "name": "financial-knowledge-base",
+  "description": "Financial services compliance assistant for investment guidance",
+  "retrievalInstructions": "For queries about policy, risks, suitability → use financial-bulletins-source. For queries about fees, fund terms, disclosures → use financial-filings-source. If both are relevant, prioritize filings for product data, bulletins for education.",
+  "answerInstructions": "Answer as detailed as possible but start off with TLDR",
+  "outputMode": "answerSynthesis",
+  "knowledgeSources": [
+    {
+      "name": "financial-bulletins-source"
+    },
+    {
+      "name": "financial-filings-source"
+    }
+  ],
+  "models": [
+    {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+        "deploymentId": "gpt-4.1-mini",
+        "apiKey": "<REDACTED>",
+        "modelName": "gpt-4.1-mini",
+        "authIdentity": null
+      }
+    }
+  ],
+  "encryptionKey": null,
+  "retrievalReasoningEffort": null
+}

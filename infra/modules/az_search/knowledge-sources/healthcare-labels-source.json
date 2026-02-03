@@ -1,0 +1,49 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD092D6AAA\"",
+  "name": "healthcare-labels-source",
+  "kind": "azureBlob",
+  "description": "FDA DailyMed drug labels and device IFU documents",
+  "encryptionKey": null,
+  "searchIndexParameters": null,
+  "azureBlobParameters": {
+    "connectionString": "<REDACTED>",
+    "containerName": "kr-demos",
+    "folderPath": "healthcare/labels/",
+    "isADLSGen2": false,
+    "ingestionParameters": {
+      "disableImageVerbalization": false,
+      "ingestionPermissionOptions": [],
+      "contentExtractionMode": "minimal",
+      "identity": null,
+      "embeddingModel": {
+        "kind": "azureOpenAI",
+        "azureOpenAIParameters": {
+          "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+          "deploymentId": "text-embedding-3-large",
+          "apiKey": "<REDACTED>",
+          "modelName": "text-embedding-3-large",
+          "authIdentity": null
+        }
+      },
+      "chatCompletionModel": null,
+      "ingestionSchedule": null,
+      "assetStore": null,
+      "aiServices": {
+        "uri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+        "apiKey": "<REDACTED>"
+      }
+    },
+    "createdResources": {
+      "datasource": "healthcare-labels-source-datasource",
+      "indexer": "healthcare-labels-source-indexer",
+      "skillset": "healthcare-labels-source-skillset",
+      "index": "healthcare-labels-source-index"
+    }
+  },
+  "mcpToolParameters": null,
+  "webParameters": null,
+  "remoteSharePointParameters": null,
+  "indexedSharePointParameters": null,
+  "indexedOneLakeParameters": null
+}

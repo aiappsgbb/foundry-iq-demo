@@ -1,0 +1,35 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE22B70B429C44\"",
+  "name": "zava-blob-indexer",
+  "description": "Indexer for knowledge source 'zava-blob'",
+  "dataSourceName": "zava-blob-datasource",
+  "skillsetName": "zava-blob-skillset",
+  "targetIndexName": "zava-blob-index",
+  "disabled": false,
+  "schedule": {
+    "interval": "P1D",
+    "startTime": "2025-10-30T13:17:48.789Z"
+  },
+  "parameters": {
+    "batchSize": null,
+    "maxFailedItems": -1,
+    "maxFailedItemsPerBatch": -1,
+    "configuration": {
+      "dataToExtract": "contentAndMetadata",
+      "parsingMode": "default",
+      "allowSkillsetToReadFileData": true,
+      "imageAction": "generateNormalizedImages"
+    }
+  },
+  "fieldMappings": [
+    {
+      "sourceFieldName": "metadata_storage_path",
+      "targetFieldName": "blob_url",
+      "mappingFunction": null
+    }
+  ],
+  "outputFieldMappings": [],
+  "cache": null,
+  "encryptionKey": null
+}

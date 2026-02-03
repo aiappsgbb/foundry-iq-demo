@@ -110,6 +110,168 @@ else
     echo "⚠ No OpenAI service found, skipping RBAC"
 fi
 
+# ============================================
+# Step 5: Deploy Azure AI Search Objects
+# ============================================
+echo ""
+echo "[5/5] Deploying Azure AI Search Objects..."
+
+# Get Search endpoint and credentials
+SEARCH_ENDPOINT="${AZURE_SEARCH_ENDPOINT:-}"
+if [ -z "$SEARCH_ENDPOINT" ] && [ -n "$SEARCH_SERVICE_NAME" ]; then
+    SEARCH_ENDPOINT="https://${SEARCH_SERVICE_NAME}.search.windows.net"
+fi
+
+if [ -z "$SEARCH_ENDPOINT" ]; then
+    echo "⚠ No Search endpoint available, skipping Azure Search deployment"
+else
+    # Get bearer token for Search API
+    SEARCH_TOKEN=$(az account get-access-token --resource "https://search.azure.com" --query "accessToken" -o tsv 2>/dev/null || echo "")
+    
+    if [ -z "$SEARCH_TOKEN" ]; then
+        echo "⚠ Could not get Search bearer token, skipping Azure Search deployment"
+    else
+        # Get Storage connection string for data sources
+        STORAGE_CONNECTION_STRING=""
+        if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
+            STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+                -n "$STORAGE_ACCOUNT_NAME" \
+                -g "$AZURE_RESOURCE_GROUP" \
+                --query "connectionString" -o tsv 2>/dev/null || echo "")
+        fi
+        
+        # Get OpenAI endpoint and key
+        OPENAI_ENDPOINT=""
+        OPENAI_KEY=""
+        if [ -n "$OPENAI_NAME" ]; then
+            OPENAI_ENDPOINT=$(az cognitiveservices account show \
+                -n "$OPENAI_NAME" \
+                -g "$AZURE_RESOURCE_GROUP" \
+                --query "properties.endpoint" -o tsv 2>/dev/null || echo "")
+            OPENAI_KEY=$(az cognitiveservices account keys list \
+                -n "$OPENAI_NAME" \
+                -g "$AZURE_RESOURCE_GROUP" \
+                --query "key1" -o tsv 2>/dev/null || echo "")
+        fi
+        
+        # Remove trailing slash from OpenAI endpoint if present
+        OPENAI_ENDPOINT="${OPENAI_ENDPOINT%/}"
+        
+        echo "  Configuration:"
+        echo "    Search Endpoint: $SEARCH_ENDPOINT"
+        [ -n "$STORAGE_CONNECTION_STRING" ] && echo "    Storage: Connected" || echo "    Storage: Not available"
+        [ -n "$OPENAI_ENDPOINT" ] && echo "    OpenAI Endpoint: $OPENAI_ENDPOINT" || echo "    OpenAI: Not available"
+        
+        # Find Azure Search config directory
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+        AZ_SEARCH_DIR="$REPO_ROOT/infra/modules/az_search"
+        
+        API_VERSION="2025-11-01-preview"
+        
+        # Function to replace placeholders in JSON content
+        replace_placeholders() {
+            local content="$1"
+            
+            # Replace endpoint placeholders
+            if [ -n "$OPENAI_ENDPOINT" ]; then
+                content=$(echo "$content" | sed "s|<AZURE_ENDPOINT_PLACEHOLDER>|$OPENAI_ENDPOINT|g")
+            fi
+            
+            # Replace API key placeholders (for OpenAI in skillsets/knowledge-sources)
+            if [ -n "$OPENAI_KEY" ]; then
+                content=$(echo "$content" | sed "s|\"apiKey\": \"<REDACTED>\"|\"apiKey\": \"$OPENAI_KEY\"|g")
+            fi
+            
+            # Replace connection string placeholders (for datasources)
+            if [ -n "$STORAGE_CONNECTION_STRING" ]; then
+                # Escape special characters in connection string for sed
+                escaped_conn=$(printf '%s\n' "$STORAGE_CONNECTION_STRING" | sed 's/[&/\]/\\&/g')
+                content=$(echo "$content" | sed "s|\"connectionString\": \"<REDACTED>\"|\"connectionString\": \"$escaped_conn\"|g")
+            fi
+            
+            # Remove OData metadata properties (not allowed in PUT)
+            content=$(echo "$content" | jq 'del(.["@odata.context"], .["@odata.etag"])')
+            
+            echo "$content"
+        }
+        
+        # Function to deploy objects of a specific type
+        deploy_objects() {
+            local object_type="$1"      # e.g., "indexes", "indexers"
+            local api_path="$2"         # e.g., "indexes", "indexers"
+            local display_name="$3"     # e.g., "Index", "Indexer"
+            local dir_path="$AZ_SEARCH_DIR/$object_type"
+            
+            if [ ! -d "$dir_path" ]; then
+                return
+            fi
+            
+            local file_count=$(find "$dir_path" -name "*.json" 2>/dev/null | wc -l)
+            if [ "$file_count" -eq 0 ]; then
+                return
+            fi
+            
+            echo ""
+            echo "  Deploying ${display_name}s ($file_count files)..."
+            
+            for json_file in "$dir_path"/*.json; do
+                [ -f "$json_file" ] || continue
+                local obj_name=$(basename "$json_file" .json)
+                
+                # Read and process content
+                local content=$(cat "$json_file")
+                content=$(replace_placeholders "$content")
+                
+                # PUT to Azure Search
+                local http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                    -X PUT "${SEARCH_ENDPOINT}/${api_path}/${obj_name}?api-version=${API_VERSION}" \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: Bearer $SEARCH_TOKEN" \
+                    -d "$content" 2>/dev/null)
+                
+                if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "204" ]; then
+                    echo "    ✓ ${display_name}: $obj_name"
+                else
+                    echo "    ⚠ ${display_name} $obj_name failed (HTTP $http_code)"
+                fi
+            done
+        }
+        
+        if [ -d "$AZ_SEARCH_DIR" ]; then
+            echo ""
+            echo "  Deploying Azure Search objects from: $AZ_SEARCH_DIR"
+            
+            # Deploy in dependency order:
+            # 1. Synonym Maps (no dependencies)
+            deploy_objects "synonymmaps" "synonymmaps" "Synonym Map"
+            
+            # 2. Data Sources (no dependencies)
+            deploy_objects "datasources" "datasources" "Data Source"
+            
+            # 3. Indexes (may reference synonym maps)
+            deploy_objects "indexes" "indexes" "Index"
+            
+            # 4. Skillsets (may reference external AI services)
+            deploy_objects "skillsets" "skillsets" "Skillset"
+            
+            # 5. Indexers (depend on indexes, datasources, skillsets)
+            deploy_objects "indexers" "indexers" "Indexer"
+            
+            # 6. Knowledge Sources (depend on indexes, may have indexers)
+            deploy_objects "knowledge-sources" "knowledgesources" "Knowledge Source"
+            
+            # 7. Knowledge Bases (depend on knowledge sources)
+            deploy_objects "knowledge-bases" "knowledgebases" "Knowledge Base"
+            
+            echo ""
+            echo "  ✓ Azure Search deployment complete"
+        else
+            echo "  ⚠ Azure Search config directory not found: $AZ_SEARCH_DIR"
+        fi
+    fi
+fi
+
 echo ""
 echo "======================================"
 echo "✓ Post-Provision Configuration Complete!"

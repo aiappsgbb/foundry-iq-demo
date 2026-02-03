@@ -1,0 +1,33 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD08FD68DE\"",
+  "name": "healthcare-knowledge-base",
+  "description": "Healthcare knowledge base ",
+  "retrievalInstructions": null,
+  "answerInstructions": null,
+  "outputMode": "extractiveData",
+  "knowledgeSources": [
+    {
+      "name": "healthcare-labels-source"
+    },
+    {
+      "name": "healthcare-guidelines-source"
+    }
+  ],
+  "models": [
+    {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+        "deploymentId": "gpt-4.1-mini",
+        "apiKey": "<REDACTED>",
+        "modelName": "gpt-4.1-mini",
+        "authIdentity": null
+      }
+    }
+  ],
+  "encryptionKey": null,
+  "retrievalReasoningEffort": {
+    "kind": "low"
+  }
+}

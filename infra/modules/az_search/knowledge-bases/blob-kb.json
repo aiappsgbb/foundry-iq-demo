@@ -1,0 +1,28 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD08F55B9A\"",
+  "name": "blob-kb",
+  "description": "Azure Blob knowledge base for testing MCP annotations with Zava retail data",
+  "retrievalInstructions": null,
+  "answerInstructions": null,
+  "outputMode": "extractiveData",
+  "knowledgeSources": [
+    {
+      "name": "zava-blob"
+    }
+  ],
+  "models": [
+    {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+        "deploymentId": "gpt-4.1-mini",
+        "apiKey": "<REDACTED>",
+        "modelName": "gpt-4.1-mini",
+        "authIdentity": null
+      }
+    }
+  ],
+  "encryptionKey": null,
+  "retrievalReasoningEffort": null
+}

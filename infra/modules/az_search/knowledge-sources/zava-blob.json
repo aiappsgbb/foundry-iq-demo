@@ -1,0 +1,55 @@
+{
+  "@odata.context": "<AZURE_ENDPOINT_PLACEHOLDER>",
+  "@odata.etag": "\"0x8DE5ABD0946F07E\"",
+  "name": "zava-blob",
+  "kind": "azureBlob",
+  "description": null,
+  "encryptionKey": null,
+  "searchIndexParameters": null,
+  "azureBlobParameters": {
+    "connectionString": "<REDACTED>",
+    "containerName": "zava-retail",
+    "folderPath": null,
+    "isADLSGen2": null,
+    "ingestionParameters": {
+      "disableImageVerbalization": null,
+      "ingestionPermissionOptions": [],
+      "contentExtractionMode": "minimal",
+      "identity": null,
+      "embeddingModel": {
+        "kind": "azureOpenAI",
+        "azureOpenAIParameters": {
+          "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+          "deploymentId": "text-embedding-3-large",
+          "apiKey": "<REDACTED>",
+          "modelName": "text-embedding-3-large",
+          "authIdentity": null
+        }
+      },
+      "chatCompletionModel": {
+        "kind": "azureOpenAI",
+        "azureOpenAIParameters": {
+          "resourceUri": "<AZURE_ENDPOINT_PLACEHOLDER>",
+          "deploymentId": "gpt-4.1",
+          "apiKey": "<REDACTED>",
+          "modelName": "gpt-4.1",
+          "authIdentity": null
+        }
+      },
+      "ingestionSchedule": null,
+      "assetStore": null,
+      "aiServices": null
+    },
+    "createdResources": {
+      "datasource": "zava-blob-datasource",
+      "indexer": "zava-blob-indexer",
+      "skillset": "zava-blob-skillset",
+      "index": "zava-blob-index"
+    }
+  },
+  "mcpToolParameters": null,
+  "webParameters": null,
+  "remoteSharePointParameters": null,
+  "indexedSharePointParameters": null,
+  "indexedOneLakeParameters": null
+}

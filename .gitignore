@@ -40,3 +40,4 @@ Thumbs.db
 
 # HTTP test files
 *.http.mcp.json
+data/

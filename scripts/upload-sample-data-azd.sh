@@ -19,6 +19,8 @@ if command -v azd &> /dev/null; then
             AZURE_STORAGE_ACCOUNT_NAME) AZURE_STORAGE_ACCOUNT_NAME="$value" ;;
             AZURE_SEARCH_ENDPOINT) AZURE_SEARCH_ENDPOINT="$value" ;;
             AZURE_RESOURCE_GROUP) AZURE_RESOURCE_GROUP="$value" ;;
+            AZURE_OPENAI_NAME) AZURE_OPENAI_NAME="$value" ;;
+            AZURE_OPENAI_ENDPOINT) AZURE_OPENAI_ENDPOINT="$value" ;;
         esac
     done < <(azd env get-values 2>/dev/null | grep -E "^AZURE_" || true)
 fi
@@ -27,6 +29,8 @@ fi
 STORAGE_ACCOUNT_NAME="${AZURE_STORAGE_ACCOUNT_NAME:-$STORAGE_ACCOUNT_NAME}"
 SEARCH_ENDPOINT="${AZURE_SEARCH_ENDPOINT:-$SEARCH_ENDPOINT}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-$RESOURCE_GROUP}"
+OPENAI_NAME="${AZURE_OPENAI_NAME:-$OPENAI_NAME}"
+OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-$OPENAI_ENDPOINT}"
 
 if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$SEARCH_ENDPOINT" ] || [ -z "$RESOURCE_GROUP" ]; then
     echo "Error: Required environment variables not set."
@@ -37,6 +41,7 @@ if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$SEARCH_ENDPOINT" ] || [ -z "$RESOURC
     echo "     export AZURE_STORAGE_ACCOUNT_NAME='your-storage-account'"
     echo "     export AZURE_SEARCH_ENDPOINT='https://your-search.search.windows.net'"
     echo "     export AZURE_RESOURCE_GROUP='your-resource-group'"
+    echo "     export AZURE_OPENAI_NAME='your-openai-account' (optional)"
     echo ""
     exit 1
 fi
@@ -51,6 +56,7 @@ echo "Configuration:"
 echo "  Storage Account: $STORAGE_ACCOUNT_NAME"
 echo "  Search Endpoint: $SEARCH_ENDPOINT"
 echo "  Resource Group: $RESOURCE_GROUP"
+[ -n "$OPENAI_NAME" ] && echo "  OpenAI Account: $OPENAI_NAME"
 echo ""
 
 # Extract search service name from endpoint with validation
@@ -61,7 +67,7 @@ if [ -z "$SEARCH_SERVICE_NAME" ]; then
 fi
 
 # Get search admin key using Azure CLI
-echo "[1/5] Retrieving credentials..."
+echo "[1/7] Retrieving credentials..."
 
 az account show
 
@@ -74,9 +80,41 @@ SEARCH_ADMIN_KEY=$(az search admin-key show \
     SEARCH_ADMIN_KEY=""
 }
 
+# Get Storage connection string for Knowledge Sources
+STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+    -n "$STORAGE_ACCOUNT_NAME" \
+    -g "$RESOURCE_GROUP" \
+    --query "connectionString" -o tsv 2>/dev/null || echo "")
+
+# Get OpenAI credentials for Knowledge Source ingestion
+if [ -z "$OPENAI_NAME" ]; then
+    OPENAI_NAME=$(az cognitiveservices account list -g "$RESOURCE_GROUP" --query "[?kind=='OpenAI'].name | [0]" -o tsv 2>/dev/null || echo "")
+fi
+
+OPENAI_KEY=""
+if [ -n "$OPENAI_NAME" ]; then
+    if [ -z "$OPENAI_ENDPOINT" ]; then
+        OPENAI_ENDPOINT=$(az cognitiveservices account show \
+            -n "$OPENAI_NAME" \
+            -g "$RESOURCE_GROUP" \
+            --query "properties.endpoint" -o tsv 2>/dev/null || echo "")
+    fi
+    OPENAI_KEY=$(az cognitiveservices account keys list \
+        -n "$OPENAI_NAME" \
+        -g "$RESOURCE_GROUP" \
+        --query "key1" -o tsv 2>/dev/null || echo "")
+    # Remove trailing slash from endpoint
+    OPENAI_ENDPOINT="${OPENAI_ENDPOINT%/}"
+fi
+
+echo "  Credentials retrieved:"
+[ -n "$STORAGE_CONNECTION_STRING" ] && echo "    ✓ Storage connection string" || echo "    ⚠ Storage connection string not available"
+[ -n "$OPENAI_ENDPOINT" ] && echo "    ✓ OpenAI endpoint: $OPENAI_ENDPOINT" || echo "    ⚠ OpenAI endpoint not available"
+[ -n "$OPENAI_KEY" ] && echo "    ✓ OpenAI API key" || echo "    ⚠ OpenAI API key not available"
+
 # Download sample PDF (Microsoft Responsible AI Transparency Report)
 echo ""
-echo "[2/5] Downloading Microsoft Responsible AI Transparency Report..."
+echo "[2/7] Downloading Microsoft Responsible AI Transparency Report..."
 SAMPLE_PDF_URL="https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/msc/documents/presentations/CSR/Responsible-AI-Transparency-Report-2025-vertical.pdf"
 SAMPLE_PDF_NAME="Responsible-AI-Transparency-Report-2025.pdf"
 CONTAINER_NAME="sample-documents"
@@ -92,7 +130,7 @@ fi
 
 # Step 3: Upload PDF to Azure Blob Storage
 echo ""
-echo "[3/5] Uploading PDF to Azure Blob Storage..."
+echo "[3/7] Uploading PDF to Azure Blob Storage..."
 
 # Create container if it doesn't exist
 az storage container create \
@@ -115,7 +153,7 @@ fi
 
 # Step 4: Create hotels-sample index
 echo ""
-echo "[4/5] Creating hotels-sample index in Azure AI Search..."
+echo "[4/7] Creating hotels-sample index in Azure AI Search..."
 
 HOTELS_INDEX_SCHEMA='{
   "name": "hotels-sample",
@@ -169,7 +207,7 @@ fi
 
 # Step 5: Upload sample hotel documents
 echo ""
-echo "[5/5] Uploading sample hotel documents..."
+echo "[5/7] Uploading sample hotel documents..."
 
 HOTELS_DATA='{
   "value": [
@@ -234,6 +272,90 @@ if [ -n "$SEARCH_TOKEN" ]; then
         -d "$HOTELS_DATA" > /dev/null 2>&1 && echo "✓ Uploaded 3 sample hotels" || echo "⚠ Document upload failed"
 fi
 
+# Step 6: Create Knowledge Source for sample documents
+echo ""
+echo "[6/7] Creating Knowledge Source for sample documents..."
+
+KB_API_VERSION="2025-11-01-preview"
+
+if [ -n "$SEARCH_TOKEN" ] && [ -n "$STORAGE_CONNECTION_STRING" ] && [ -n "$OPENAI_ENDPOINT" ] && [ -n "$OPENAI_KEY" ]; then
+    KNOWLEDGE_SOURCE_JSON=$(cat <<EOF
+{
+  "name": "sample-documents-ks",
+  "kind": "azureBlob",
+  "azureBlobParameters": {
+    "connectionString": "${STORAGE_CONNECTION_STRING}",
+    "containerName": "${CONTAINER_NAME}",
+    "ingestionParameters": {
+      "embeddingModel": {
+        "azureOpenAIParameters": {
+          "resourceUri": "${OPENAI_ENDPOINT}",
+          "apiKey": "${OPENAI_KEY}",
+          "deploymentId": "text-embedding-3-small"
+        }
+      }
+    }
+  }
+}
+EOF
+)
+    
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X PUT "${SEARCH_ENDPOINT}/knowledgesources/sample-documents-ks?api-version=${KB_API_VERSION}" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $SEARCH_TOKEN" \
+        -d "$KNOWLEDGE_SOURCE_JSON" 2>/dev/null)
+    
+    if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+        echo "✓ Created Knowledge Source: sample-documents-ks"
+    else
+        echo "⚠ Knowledge Source creation failed (HTTP $http_code)"
+    fi
+else
+    echo "⚠ Missing credentials for Knowledge Source creation"
+    [ -z "$STORAGE_CONNECTION_STRING" ] && echo "    - Storage connection string not available"
+    [ -z "$OPENAI_ENDPOINT" ] && echo "    - OpenAI endpoint not available"
+    [ -z "$OPENAI_KEY" ] && echo "    - OpenAI API key not available"
+fi
+
+# Step 7: Create Knowledge Base
+echo ""
+echo "[7/7] Creating Knowledge Base..."
+
+if [ -n "$SEARCH_TOKEN" ] && [ -n "$OPENAI_ENDPOINT" ] && [ -n "$OPENAI_KEY" ]; then
+    KNOWLEDGE_BASE_JSON=$(cat <<EOF
+{
+  "name": "sample-knowledge-base",
+  "description": "Sample knowledge base with Responsible AI documentation",
+  "knowledgeSources": [
+    {"name": "sample-documents-ks"}
+  ],
+  "inferenceParameters": {
+    "azureOpenAIParameters": {
+      "resourceUri": "${OPENAI_ENDPOINT}",
+      "apiKey": "${OPENAI_KEY}",
+      "deploymentId": "gpt-4o"
+    }
+  }
+}
+EOF
+)
+    
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X PUT "${SEARCH_ENDPOINT}/knowledgebases/sample-knowledge-base?api-version=${KB_API_VERSION}" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $SEARCH_TOKEN" \
+        -d "$KNOWLEDGE_BASE_JSON" 2>/dev/null)
+    
+    if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+        echo "✓ Created Knowledge Base: sample-knowledge-base"
+    else
+        echo "⚠ Knowledge Base creation failed (HTTP $http_code)"
+    fi
+else
+    echo "⚠ Missing credentials for Knowledge Base creation"
+fi
+
 # Cleanup
 rm -rf /tmp/sample-data
 
@@ -245,12 +367,13 @@ echo ""
 echo "What was created:"
 echo "  1. Blob Storage: $CONTAINER_NAME container with sample PDF"
 echo "  2. Search Index: hotels-sample (with 3 documents)"
+echo "  3. Knowledge Source: sample-documents-ks (Azure Blob)"
+echo "  4. Knowledge Base: sample-knowledge-base"
 echo ""
-echo "Next steps:"
-echo "  1. Create a knowledge base in the app pointing to:"
-echo "     - Azure Blob: $CONTAINER_NAME container"
-echo "     - Search Index: hotels-sample"
-echo "  2. Test queries like:"
-echo "     - 'What are Microsoft's principles for responsible AI?'"
-echo "     - 'Find hotels with a pool in Seattle'"
+echo "Test queries in the app:"
+echo "  - 'What are Microsoft's principles for responsible AI?'"
+echo "  - 'Find hotels with a pool in Seattle'"
+echo ""
+echo "Access the Knowledge Base at:"
+echo "  ${SEARCH_ENDPOINT}/knowledgebases/sample-knowledge-base"
 echo ""
