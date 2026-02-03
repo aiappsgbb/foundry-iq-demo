@@ -169,9 +169,6 @@ else
         
         API_VERSION="2025-11-01-preview"
         
-        # Track deployment failures
-        DEPLOY_FAILURES=0
-        
         # Function to replace placeholders in JSON content
         replace_placeholders() {
             local content="$1"
@@ -226,8 +223,10 @@ else
                 local content=$(cat "$json_file")
                 content=$(replace_placeholders "$content")
                 
-                # PUT to Azure Search
-                local http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                # PUT to Azure Search - capture both response body and HTTP code
+                local response_file=$(mktemp)
+                local http_code=$(curl -s -w "%{http_code}" \
+                    -o "$response_file" \
                     -X PUT "${SEARCH_ENDPOINT}/${api_path}/${obj_name}?api-version=${API_VERSION}" \
                     -H "Content-Type: application/json" \
                     -H "Authorization: Bearer $SEARCH_TOKEN" \
@@ -235,9 +234,23 @@ else
                 
                 if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "204" ]; then
                     echo "    ✓ ${display_name}: $obj_name"
+                    rm -f "$response_file"
                 else
-                    echo "    ✗ ${display_name} $obj_name failed (HTTP $http_code)"
-                    DEPLOY_FAILURES=$((DEPLOY_FAILURES + 1))
+                    echo ""
+                    echo "    ✗ FAILED: ${display_name} '$obj_name' (HTTP $http_code)"
+                    echo ""
+                    echo "    Request URL: ${SEARCH_ENDPOINT}/${api_path}/${obj_name}?api-version=${API_VERSION}"
+                    echo "    Source file: $json_file"
+                    echo ""
+                    echo "    Response body:"
+                    echo "    ----------------------------------------"
+                    cat "$response_file" | jq . 2>/dev/null || cat "$response_file"
+                    echo ""
+                    echo "    ----------------------------------------"
+                    rm -f "$response_file"
+                    echo ""
+                    echo "ERROR: Azure Search deployment failed. Stopping."
+                    exit 1
                 fi
             done
         }
@@ -269,12 +282,7 @@ else
             deploy_objects "knowledge-bases" "knowledgebases" "Knowledge Base"
             
             echo ""
-            if [ "$DEPLOY_FAILURES" -gt 0 ]; then
-                echo "  ✗ Azure Search deployment failed: $DEPLOY_FAILURES object(s) failed"
-                exit 1
-            else
-                echo "  ✓ Azure Search deployment complete"
-            fi
+            echo "  ✓ Azure Search deployment complete"
         else
             echo "  ⚠ Azure Search config directory not found: $AZ_SEARCH_DIR"
         fi
