@@ -476,26 +476,14 @@ else
             echo ""
             echo "  Deploying Azure Search objects from: $AZ_SEARCH_DIR"
             
-            # Deploy in dependency order:
-            # 1. Synonym Maps (no dependencies)
-            deploy_objects "synonymmaps" "synonymmaps" "Synonym Map"
+            # Deploy Knowledge Sources and Knowledge Bases only
+            # Note: Knowledge Sources with indexed types (azureBlob, indexedOneLake, indexedSharePoint)
+            # automatically create their own indexes, datasources, indexers, and skillsets
             
-            # 2. Data Sources (no dependencies)
-            deploy_objects "datasources" "datasources" "Data Source"
-            
-            # 3. Indexes (may reference synonym maps)
-            deploy_objects "indexes" "indexes" "Index"
-            
-            # 4. Skillsets (may reference external AI services)
-            deploy_objects "skillsets" "skillsets" "Skillset"
-            
-            # 5. Indexers (depend on indexes, datasources, skillsets)
-            deploy_objects "indexers" "indexers" "Indexer"
-            
-            # 6. Knowledge Sources (depend on indexes, may have indexers)
+            # 1. Knowledge Sources (creates indexes, datasources, indexers, skillsets automatically)
             deploy_objects "knowledge-sources" "knowledgesources" "Knowledge Source"
             
-            # 7. Knowledge Bases (depend on knowledge sources)
+            # 2. Knowledge Bases (depend on knowledge sources)
             deploy_objects "knowledge-bases" "knowledgebases" "Knowledge Base"
             
             echo ""
