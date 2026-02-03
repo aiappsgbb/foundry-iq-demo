@@ -125,11 +125,18 @@ fi
 if [ -z "$SEARCH_ENDPOINT" ]; then
     echo "⚠ No Search endpoint available, skipping Azure Search deployment"
 else
-    # Get bearer token for Search API
-    SEARCH_TOKEN=$(az account get-access-token --resource "https://search.azure.com" --query "accessToken" -o tsv 2>/dev/null || echo "")
+    # Get Search Admin API Key (required for management operations like creating indexes, knowledge bases)
+    SEARCH_ADMIN_KEY=""
+    if [ -n "$SEARCH_SERVICE_NAME" ]; then
+        SEARCH_ADMIN_KEY=$(az search admin-key show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --service-name "$SEARCH_SERVICE_NAME" \
+            --query "primaryKey" -o tsv 2>/dev/null || echo "")
+    fi
     
-    if [ -z "$SEARCH_TOKEN" ]; then
-        echo "⚠ Could not get Search bearer token, skipping Azure Search deployment"
+    if [ -z "$SEARCH_ADMIN_KEY" ]; then
+        echo "⚠ Could not get Search admin key, skipping Azure Search deployment"
+        echo "  Ensure you have 'Search Service Contributor' role on the Search service"
     else
         # Get Storage connection string for data sources
         STORAGE_CONNECTION_STRING=""
@@ -159,8 +166,10 @@ else
         
         echo "  Configuration:"
         echo "    Search Endpoint: $SEARCH_ENDPOINT"
+        echo "    Search Admin Key: ****"
         [ -n "$STORAGE_CONNECTION_STRING" ] && echo "    Storage: Connected" || echo "    Storage: Not available"
         [ -n "$OPENAI_ENDPOINT" ] && echo "    OpenAI Endpoint: $OPENAI_ENDPOINT" || echo "    OpenAI: Not available"
+        [ -n "$OPENAI_KEY" ] && echo "    OpenAI Key: ****" || echo "    OpenAI Key: Not available"
         
         # Find Azure Search config directory
         SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -229,7 +238,7 @@ else
                     -o "$response_file" \
                     -X PUT "${SEARCH_ENDPOINT}/${api_path}/${obj_name}?api-version=${API_VERSION}" \
                     -H "Content-Type: application/json" \
-                    -H "Authorization: Bearer $SEARCH_TOKEN" \
+                    -H "api-key: $SEARCH_ADMIN_KEY" \
                     -d "$content" 2>/dev/null)
                 
                 if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "204" ]; then

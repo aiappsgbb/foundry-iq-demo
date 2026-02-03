@@ -32,6 +32,11 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
     replicaCount: 1
     publicNetworkAccess: 'enabled'
     semanticSearch: 'free'
+    authOptions: {
+      aadOrApiKey: {
+        aadAuthFailureMode: 'http401WithBearerChallenge'
+      }
+    }
   }
 }
 
