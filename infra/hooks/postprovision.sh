@@ -181,23 +181,136 @@ else
         # Function to replace placeholders in JSON content
         replace_placeholders() {
             local content="$1"
+            local object_type="$2"  # datasources, skillsets, knowledge-sources, etc.
             
-            # Replace endpoint placeholders
-            if [ -n "$OPENAI_ENDPOINT" ]; then
-                content=$(echo "$content" | sed "s|<AZURE_ENDPOINT_PLACEHOLDER>|$OPENAI_ENDPOINT|g")
-            fi
+            # Use jq for all replacements - safer and handles nested structures
+            # Build a jq filter based on object type
             
-            # Replace API key placeholders (for OpenAI in skillsets/knowledge-sources)
-            if [ -n "$OPENAI_KEY" ]; then
-                content=$(echo "$content" | sed "s|\"apiKey\": \"<REDACTED>\"|\"apiKey\": \"$OPENAI_KEY\"|g")
-            fi
-            
-            # Replace connection string placeholders (for datasources)
-            if [ -n "$STORAGE_CONNECTION_STRING" ]; then
-                # Escape special characters in connection string for sed
-                escaped_conn=$(printf '%s\n' "$STORAGE_CONNECTION_STRING" | sed 's/[&/\]/\\&/g')
-                content=$(echo "$content" | sed "s|\"connectionString\": \"<REDACTED>\"|\"connectionString\": \"$escaped_conn\"|g")
-            fi
+            case "$object_type" in
+                "datasources")
+                    # Datasources: set credentials.connectionString
+                    if [ -n "$STORAGE_CONNECTION_STRING" ]; then
+                        content=$(echo "$content" | jq --arg cs "$STORAGE_CONNECTION_STRING" '
+                            .credentials.connectionString = $cs
+                        ')
+                    fi
+                    ;;
+                    
+                "skillsets")
+                    # Skillsets: replace apiKey, key, resourceUri, uri, subdomainUrl in various locations
+                    content=$(echo "$content" | jq \
+                        --arg endpoint "${OPENAI_ENDPOINT:-}" \
+                        --arg apikey "${OPENAI_KEY:-}" '
+                        # Walk through all skills and replace placeholders
+                        (.skills // []) |= map(
+                            # Replace resourceUri in embedding skills
+                            if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                            # Replace uri in ChatCompletionSkill
+                            if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .uri = $endpoint else . end |
+                            # Replace apiKey
+                            if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                        ) |
+                        # Replace cognitiveServices settings
+                        if .cognitiveServices then
+                            .cognitiveServices |= (
+                                if .subdomainUrl == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .subdomainUrl = $endpoint else . end |
+                                if .key == "<REDACTED>" and $apikey != "" then .key = $apikey else . end
+                            )
+                        else . end
+                    ')
+                    ;;
+                    
+                "knowledge-sources")
+                    # Knowledge Sources: replace connectionString and nested OpenAI params
+                    content=$(echo "$content" | jq \
+                        --arg cs "${STORAGE_CONNECTION_STRING:-}" \
+                        --arg endpoint "${OPENAI_ENDPOINT:-}" \
+                        --arg apikey "${OPENAI_KEY:-}" '
+                        # Azure Blob parameters
+                        if .azureBlobParameters then
+                            .azureBlobParameters |= (
+                                # Connection string
+                                if (.connectionString == "<REDACTED>" or .connectionString == null) and $cs != "" then .connectionString = $cs else . end |
+                                # Embedding model
+                                if .ingestionParameters.embeddingModel.azureOpenAIParameters then
+                                    .ingestionParameters.embeddingModel.azureOpenAIParameters |= (
+                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                    )
+                                else . end |
+                                # Chat completion model
+                                if .ingestionParameters.chatCompletionModel.azureOpenAIParameters then
+                                    .ingestionParameters.chatCompletionModel.azureOpenAIParameters |= (
+                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                    )
+                                else . end |
+                                # AI Services
+                                if .ingestionParameters.aiServices then
+                                    .ingestionParameters.aiServices |= (
+                                        if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .uri = $endpoint else . end |
+                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                    )
+                                else . end
+                            )
+                        else . end |
+                        # Indexed OneLake parameters (similar structure)
+                        if .indexedOneLakeParameters.ingestionParameters then
+                            .indexedOneLakeParameters.ingestionParameters |= (
+                                if .embeddingModel.azureOpenAIParameters then
+                                    .embeddingModel.azureOpenAIParameters |= (
+                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                    )
+                                else . end
+                            )
+                        else . end |
+                        # Indexed SharePoint parameters (similar structure)
+                        if .indexedSharePointParameters.ingestionParameters then
+                            .indexedSharePointParameters.ingestionParameters |= (
+                                if .embeddingModel.azureOpenAIParameters then
+                                    .embeddingModel.azureOpenAIParameters |= (
+                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                    )
+                                else . end
+                            )
+                        else . end
+                    ')
+                    ;;
+                    
+                "knowledge-bases")
+                    # Knowledge Bases: replace OpenAI params in models array
+                    content=$(echo "$content" | jq \
+                        --arg endpoint "${OPENAI_ENDPOINT:-}" \
+                        --arg apikey "${OPENAI_KEY:-}" '
+                        # Models array (inference model)
+                        (.models // []) |= map(
+                            if .azureOpenAIParameters then
+                                .azureOpenAIParameters |= (
+                                    if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                                    if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                                )
+                            else . end
+                        ) |
+                        # Also check inferenceParameters if present (older schema)
+                        if .inferenceParameters.azureOpenAIParameters then
+                            .inferenceParameters.azureOpenAIParameters |= (
+                                if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
+                                if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
+                            )
+                        else . end
+                    ')
+                    ;;
+                    
+                *)
+                    # For other types (indexes, indexers, synonymmaps)
+                    # Just do basic endpoint replacement if needed
+                    if [ -n "$OPENAI_ENDPOINT" ]; then
+                        content=$(echo "$content" | sed "s|<AZURE_ENDPOINT_PLACEHOLDER>|$OPENAI_ENDPOINT|g")
+                    fi
+                    ;;
+            esac
             
             # Remove OData metadata properties (not allowed in PUT)
             content=$(echo "$content" | jq 'del(.["@odata.context"], .["@odata.etag"])')
@@ -228,9 +341,9 @@ else
                 [ -f "$json_file" ] || continue
                 local obj_name=$(basename "$json_file" .json)
                 
-                # Read and process content
+                # Read and process content (pass object_type for type-specific replacements)
                 local content=$(cat "$json_file")
-                content=$(replace_placeholders "$content")
+                content=$(replace_placeholders "$content" "$object_type")
                 
                 # PUT to Azure Search - capture both response body and HTTP code
                 local response_file=$(mktemp)
