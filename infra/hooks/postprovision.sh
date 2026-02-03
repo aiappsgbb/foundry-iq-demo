@@ -221,6 +221,51 @@ else
         
         API_VERSION="2025-11-01-preview"
         
+        # ============================================
+        # Create required blob containers before deploying datasources
+        # ============================================
+        if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
+            echo ""
+            echo "  Creating required blob containers..."
+            
+            # Extract unique container names from datasource files
+            CONTAINERS=""
+            if [ -d "$AZ_SEARCH_DIR/datasources" ]; then
+                CONTAINERS=$(find "$AZ_SEARCH_DIR/datasources" -name "*.json" -exec jq -r '.container.name // empty' {} \; 2>/dev/null | sort -u)
+            fi
+            
+            # Also extract containers from knowledge-sources (azureBlobParameters.containerName)
+            if [ -d "$AZ_SEARCH_DIR/knowledge-sources" ]; then
+                KS_CONTAINERS=$(find "$AZ_SEARCH_DIR/knowledge-sources" -name "*.json" -exec jq -r '.azureBlobParameters.containerName // empty' {} \; 2>/dev/null | sort -u)
+                CONTAINERS=$(echo -e "$CONTAINERS\n$KS_CONTAINERS" | sort -u | grep -v '^$')
+            fi
+            
+            if [ -z "$CONTAINERS" ]; then
+                echo "    No containers to create"
+            else
+                for container in $CONTAINERS; do
+                    if [ -n "$container" ]; then
+                        # Check if container exists (idempotent)
+                        EXISTS=$(az storage container exists \
+                            --account-name "$STORAGE_ACCOUNT_NAME" \
+                            --name "$container" \
+                            --auth-mode login \
+                            --query "exists" -o tsv 2>/dev/null || echo "false")
+                        
+                        if [ "$EXISTS" = "true" ]; then
+                            echo "    ✓ Container '$container' already exists (skipped)"
+                        else
+                            az storage container create \
+                                --account-name "$STORAGE_ACCOUNT_NAME" \
+                                --name "$container" \
+                                --auth-mode login \
+                                --output none 2>/dev/null && echo "    ✓ Container '$container' created" || echo "    ⚠ Failed to create container '$container'"
+                        fi
+                    fi
+                done
+            fi
+        fi
+        
         # Function to replace placeholders in JSON content
         replace_placeholders() {
             local content="$1"
