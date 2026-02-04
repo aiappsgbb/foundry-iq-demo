@@ -41,3 +41,22 @@ Thumbs.db
 # HTTP test files
 *.http.mcp.json
 data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+.Python
+venv/
+.venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.whl
+

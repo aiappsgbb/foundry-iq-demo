@@ -164,12 +164,23 @@ jobs:
           echo "openai-name=$(azd env get-value AZURE_OPENAI_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
         shell: bash
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies for Postprovision
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r infra/hooks/requirements.txt
+
       - name: Run Postprovision Hook
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
             echo "Running postprovision hook..."
+            chmod +x ./infra/hooks/postprovision.sh
             ./infra/hooks/postprovision.sh
         env:
           AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}

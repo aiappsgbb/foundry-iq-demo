@@ -133,374 +133,86 @@ fi
 # ============================================
 # Step 5: Deploy Azure AI Search Objects
 # ============================================
-# NOTE: All Azure Search operations are idempotent:
-# - PUT creates resource if not exists, updates if exists
-# - Running this script multiple times is safe
+# Use Python script for reliable placeholder replacement and Azure SDK access
 echo ""
 echo "[5/5] Deploying Azure AI Search Objects..."
 
-# Get Search endpoint and credentials
-SEARCH_ENDPOINT="${AZURE_SEARCH_ENDPOINT:-}"
-if [ -z "$SEARCH_ENDPOINT" ] && [ -n "$SEARCH_SERVICE_NAME" ]; then
-    SEARCH_ENDPOINT="https://${SEARCH_SERVICE_NAME}.search.windows.net"
+# Create required blob container before deploying knowledge sources
+BLOB_CONTAINER_NAME="${AZURE_BLOB_CONTAINER_NAME:-foundry-iq-data}"
+if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
+    echo ""
+    echo "  Creating blob container..."
+    
+    # Check if container exists (idempotent)
+    EXISTS=$(az storage container exists \
+        --account-name "$STORAGE_ACCOUNT_NAME" \
+        --name "$BLOB_CONTAINER_NAME" \
+        --auth-mode login \
+        --query "exists" -o tsv 2>/dev/null || echo "false")
+    
+    if [ "$EXISTS" = "true" ]; then
+        echo "    ✓ Container '$BLOB_CONTAINER_NAME' already exists (skipped)"
+    else
+        az storage container create \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --name "$BLOB_CONTAINER_NAME" \
+            --auth-mode login \
+            --output none 2>/dev/null && echo "    ✓ Container '$BLOB_CONTAINER_NAME' created" || echo "    ⚠ Failed to create container"
+    fi
 fi
 
-if [ -z "$SEARCH_ENDPOINT" ]; then
-    echo "⚠ No Search endpoint available, skipping Azure Search deployment"
-else
-    # Get Search Admin API Key (required for management operations like creating indexes, knowledge bases)
-    SEARCH_ADMIN_KEY=""
-    if [ -n "$SEARCH_SERVICE_NAME" ]; then
-        SEARCH_ADMIN_KEY=$(az search admin-key show \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --service-name "$SEARCH_SERVICE_NAME" \
-            --query "primaryKey" -o tsv 2>/dev/null || echo "")
-    fi
-    
-    if [ -z "$SEARCH_ADMIN_KEY" ]; then
-        echo "⚠ Could not get Search admin key, skipping Azure Search deployment"
-        echo "  Ensure you have 'Search Service Contributor' role on the Search service"
-    else
-        # Get Storage connection string for data sources
-        STORAGE_CONNECTION_STRING=""
-        if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
-            STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
-                -n "$STORAGE_ACCOUNT_NAME" \
-                -g "$AZURE_RESOURCE_GROUP" \
-                --query "connectionString" -o tsv 2>/dev/null || echo "")
-        fi
-        
-        # Get OpenAI endpoint and key
-        OPENAI_ENDPOINT=""
-        OPENAI_KEY=""
-        if [ -n "$OPENAI_NAME" ]; then
-            OPENAI_ENDPOINT=$(az cognitiveservices account show \
-                -n "$OPENAI_NAME" \
-                -g "$AZURE_RESOURCE_GROUP" \
-                --query "properties.endpoint" -o tsv 2>/dev/null || echo "")
-            OPENAI_KEY=$(az cognitiveservices account keys list \
-                -n "$OPENAI_NAME" \
-                -g "$AZURE_RESOURCE_GROUP" \
-                --query "key1" -o tsv 2>/dev/null || echo "")
-        fi
-        
-        # Remove trailing slash from OpenAI endpoint if present
-        OPENAI_ENDPOINT="${OPENAI_ENDPOINT%/}"
-        
-        # Get AI Services (Cognitive Services multi-service) endpoint and key
-        # This is different from Azure OpenAI - used for built-in skills like OCR, language detection
-        AI_SERVICES_NAME=$(az cognitiveservices account list -g "$AZURE_RESOURCE_GROUP" \
-            --query "[?kind=='CognitiveServices'].name | [0]" -o tsv 2>/dev/null || echo "")
-        AI_SERVICES_ENDPOINT=""
-        AI_SERVICES_KEY=""
-        if [ -n "$AI_SERVICES_NAME" ]; then
-            AI_SERVICES_ENDPOINT=$(az cognitiveservices account show \
-                -n "$AI_SERVICES_NAME" \
-                -g "$AZURE_RESOURCE_GROUP" \
-                --query "properties.endpoint" -o tsv 2>/dev/null || echo "")
-            AI_SERVICES_KEY=$(az cognitiveservices account keys list \
-                -n "$AI_SERVICES_NAME" \
-                -g "$AZURE_RESOURCE_GROUP" \
-                --query "key1" -o tsv 2>/dev/null || echo "")
-            AI_SERVICES_ENDPOINT="${AI_SERVICES_ENDPOINT%/}"
-        fi
-        
-        echo "  Configuration:"
-        echo "    Search Endpoint: $SEARCH_ENDPOINT"
-        echo "    Search Admin Key: ****"
-        [ -n "$STORAGE_CONNECTION_STRING" ] && echo "    Storage: Connected" || echo "    Storage: Not available"
-        [ -n "$OPENAI_ENDPOINT" ] && echo "    OpenAI Endpoint: $OPENAI_ENDPOINT" || echo "    OpenAI: Not available"
-        [ -n "$OPENAI_KEY" ] && echo "    OpenAI Key: ****" || echo "    OpenAI Key: Not available"
-        [ -n "$AI_SERVICES_ENDPOINT" ] && echo "    AI Services Endpoint: $AI_SERVICES_ENDPOINT" || echo "    AI Services: Not available (skillsets will use free tier)"
-        [ -n "$AI_SERVICES_KEY" ] && echo "    AI Services Key: ****" || true
-        
-        # Find Azure Search config directory
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-        AZ_SEARCH_DIR="$REPO_ROOT/infra/modules/az_search"
-        
-        API_VERSION="2025-11-01-preview"
-        
-        # Default blob container name for all datasources/knowledge-sources
-        # Can be overridden via AZURE_BLOB_CONTAINER_NAME environment variable
-        BLOB_CONTAINER_NAME="${AZURE_BLOB_CONTAINER_NAME:-foundry-iq-data}"
-        echo "    Blob Container: $BLOB_CONTAINER_NAME"
-        
-        # ============================================
-        # Create required blob container before deploying datasources
-        # ============================================
-        if [ -n "$STORAGE_ACCOUNT_NAME" ]; then
-            echo ""
-            echo "  Creating blob container..."
-            
-            # Check if container exists (idempotent)
-            EXISTS=$(az storage container exists \
-                --account-name "$STORAGE_ACCOUNT_NAME" \
-                --name "$BLOB_CONTAINER_NAME" \
-                --auth-mode login \
-                --query "exists" -o tsv 2>/dev/null || echo "false")
-            
-            if [ "$EXISTS" = "true" ]; then
-                echo "    ✓ Container '$BLOB_CONTAINER_NAME' already exists (skipped)"
-            else
-                az storage container create \
-                    --account-name "$STORAGE_ACCOUNT_NAME" \
-                    --name "$BLOB_CONTAINER_NAME" \
-                    --auth-mode login \
-                    --output none 2>/dev/null && echo "    ✓ Container '$BLOB_CONTAINER_NAME' created" || echo "    ⚠ Failed to create container"
-            fi
-        fi
-        
-        # Function to replace placeholders in JSON content
-        replace_placeholders() {
-            local content="$1"
-            local object_type="$2"  # datasources, skillsets, knowledge-sources, etc.
-            
-            # Use jq for all replacements - safer and handles nested structures
-            # Build a jq filter based on object type
-            
-            case "$object_type" in
-                "datasources")
-                    # Datasources: set credentials.connectionString and container name
-                    content=$(echo "$content" | jq \
-                        --arg cs "${STORAGE_CONNECTION_STRING:-}" \
-                        --arg container "${BLOB_CONTAINER_NAME:-}" '
-                        # Set connection string
-                        if $cs != "" then .credentials.connectionString = $cs else . end |
-                        # Replace container name placeholder
-                        if .container.name == "<BLOB_CONTAINER_PLACEHOLDER>" and $container != "" then
-                            .container.name = $container
-                        else . end
-                    ')
-                    ;;
-                    
-                "skillsets")
-                    # Skillsets: replace apiKey, key, resourceUri, uri, subdomainUrl in various locations
-                    # NOTE: cognitiveServices uses AI Services (multi-service), not OpenAI
-                    content=$(echo "$content" | jq \
-                        --arg endpoint "${OPENAI_ENDPOINT:-}" \
-                        --arg apikey "${OPENAI_KEY:-}" \
-                        --arg ai_endpoint "${AI_SERVICES_ENDPOINT:-}" \
-                        --arg ai_key "${AI_SERVICES_KEY:-}" '
-                        # Walk through all skills and replace placeholders
-                        (.skills // []) |= map(
-                            # Replace resourceUri in embedding skills (Azure OpenAI)
-                            if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                            # Replace uri in ChatCompletionSkill (Azure OpenAI)
-                            if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .uri = $endpoint else . end |
-                            # Replace apiKey for Azure OpenAI skills
-                            if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                        ) |
-                        # Replace cognitiveServices settings (uses AI Services, not OpenAI!)
-                        if .cognitiveServices then
-                            if $ai_endpoint != "" and $ai_key != "" then
-                                .cognitiveServices |= (
-                                    if .subdomainUrl == "<AZURE_ENDPOINT_PLACEHOLDER>" then .subdomainUrl = $ai_endpoint else . end |
-                                    if .key == "<REDACTED>" then .key = $ai_key else . end
-                                )
-                            else
-                                # No AI Services available - remove cognitiveServices to use free tier
-                                del(.cognitiveServices)
-                            end
-                        else . end
-                    ')
-                    ;;
-                    
-                "knowledge-sources")
-                    # Knowledge Sources: replace connectionString, containerName, and nested OpenAI params
-                    content=$(echo "$content" | jq \
-                        --arg cs "${STORAGE_CONNECTION_STRING:-}" \
-                        --arg endpoint "${OPENAI_ENDPOINT:-}" \
-                        --arg apikey "${OPENAI_KEY:-}" \
-                        --arg container "${BLOB_CONTAINER_NAME:-}" \
-                        --arg ai_endpoint "${AI_SERVICES_ENDPOINT:-}" \
-                        --arg ai_key "${AI_SERVICES_KEY:-}" '
-                        # Azure Blob parameters
-                        if .azureBlobParameters then
-                            .azureBlobParameters |= (
-                                # Connection string
-                                if (.connectionString == "<REDACTED>" or .connectionString == null) and $cs != "" then .connectionString = $cs else . end |
-                                # Container name placeholder
-                                if .containerName == "<BLOB_CONTAINER_PLACEHOLDER>" and $container != "" then .containerName = $container else . end |
-                                # Embedding model
-                                if .ingestionParameters.embeddingModel.azureOpenAIParameters then
-                                    .ingestionParameters.embeddingModel.azureOpenAIParameters |= (
-                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                                    )
-                                else . end |
-                                # Chat completion model
-                                if .ingestionParameters.chatCompletionModel.azureOpenAIParameters then
-                                    .ingestionParameters.chatCompletionModel.azureOpenAIParameters |= (
-                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                                    )
-                                else . end |
-                                # AI Services (uses AI Services endpoint, NOT OpenAI!)
-                                # If AI Services not available, remove aiServices section entirely
-                                if .ingestionParameters.aiServices then
-                                    if $ai_endpoint != "" and $ai_key != "" then
-                                        .ingestionParameters.aiServices |= (
-                                            if .uri == "<AZURE_ENDPOINT_PLACEHOLDER>" then .uri = $ai_endpoint else . end |
-                                            if .apiKey == "<REDACTED>" then .apiKey = $ai_key else . end
-                                        )
-                                    else
-                                        # No AI Services available - remove aiServices to use free tier
-                                        .ingestionParameters.aiServices = null
-                                    end
-                                else . end
-                            )
-                        else . end |
-                        # Indexed OneLake parameters (similar structure)
-                        if .indexedOneLakeParameters.ingestionParameters then
-                            .indexedOneLakeParameters.ingestionParameters |= (
-                                if .embeddingModel.azureOpenAIParameters then
-                                    .embeddingModel.azureOpenAIParameters |= (
-                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                                    )
-                                else . end
-                            )
-                        else . end |
-                        # Indexed SharePoint parameters (similar structure)
-                        if .indexedSharePointParameters.ingestionParameters then
-                            .indexedSharePointParameters.ingestionParameters |= (
-                                if .embeddingModel.azureOpenAIParameters then
-                                    .embeddingModel.azureOpenAIParameters |= (
-                                        if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                                        if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                                    )
-                                else . end
-                            )
-                        else . end
-                    ')
-                    ;;
-                    
-                "knowledge-bases")
-                    # Knowledge Bases: replace OpenAI params in models array
-                    content=$(echo "$content" | jq \
-                        --arg endpoint "${OPENAI_ENDPOINT:-}" \
-                        --arg apikey "${OPENAI_KEY:-}" '
-                        # Models array (inference model)
-                        (.models // []) |= map(
-                            if .azureOpenAIParameters then
-                                .azureOpenAIParameters |= (
-                                    if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                                    if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                                )
-                            else . end
-                        ) |
-                        # Also check inferenceParameters if present (older schema)
-                        if .inferenceParameters.azureOpenAIParameters then
-                            .inferenceParameters.azureOpenAIParameters |= (
-                                if .resourceUri == "<AZURE_ENDPOINT_PLACEHOLDER>" and $endpoint != "" then .resourceUri = $endpoint else . end |
-                                if .apiKey == "<REDACTED>" and $apikey != "" then .apiKey = $apikey else . end
-                            )
-                        else . end
-                    ')
-                    ;;
-                    
-                *)
-                    # For other types (indexes, indexers, synonymmaps)
-                    # Just do basic endpoint replacement if needed
-                    if [ -n "$OPENAI_ENDPOINT" ]; then
-                        content=$(echo "$content" | sed "s|<AZURE_ENDPOINT_PLACEHOLDER>|$OPENAI_ENDPOINT|g")
-                    fi
-                    ;;
-            esac
-            
-            # Remove OData metadata properties (not allowed in PUT)
-            content=$(echo "$content" | jq 'del(.["@odata.context"], .["@odata.etag"])')
-            
-            echo "$content"
-        }
-        
-        # Function to deploy objects of a specific type
-        deploy_objects() {
-            local object_type="$1"      # e.g., "indexes", "indexers"
-            local api_path="$2"         # e.g., "indexes", "indexers"
-            local display_name="$3"     # e.g., "Index", "Indexer"
-            local dir_path="$AZ_SEARCH_DIR/$object_type"
-            
-            if [ ! -d "$dir_path" ]; then
-                return
-            fi
-            
-            local file_count=$(find "$dir_path" -name "*.json" 2>/dev/null | wc -l)
-            if [ "$file_count" -eq 0 ]; then
-                return
-            fi
-            
-            echo ""
-            echo "  Deploying ${display_name}s ($file_count files)..."
-            
-            for json_file in "$dir_path"/*.json; do
-                [ -f "$json_file" ] || continue
-                local obj_name=$(basename "$json_file" .json)
-                
-                # Skip files starting with "zava" (legacy test data)
-                if [[ "$obj_name" == zava* ]]; then
-                    echo "    ○ Skipping: $obj_name (excluded)"
-                    continue
-                fi
-                
-                # Read and process content (pass object_type for type-specific replacements)
-                local content=$(cat "$json_file")
-                content=$(replace_placeholders "$content" "$object_type")
-                
-                # PUT to Azure Search - capture both response body and HTTP code
-                local response_file=$(mktemp)
-                local http_code=$(curl -s -w "%{http_code}" \
-                    -o "$response_file" \
-                    -X PUT "${SEARCH_ENDPOINT}/${api_path}/${obj_name}?api-version=${API_VERSION}" \
-                    -H "Content-Type: application/json" \
-                    -H "api-key: $SEARCH_ADMIN_KEY" \
-                    -d "$content" 2>/dev/null)
-                
-                if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "204" ]; then
-                    echo "    ✓ ${display_name}: $obj_name"
-                    rm -f "$response_file"
-                else
-                    echo ""
-                    echo "    ✗ FAILED: ${display_name} '$obj_name' (HTTP $http_code)"
-                    echo ""
-                    echo "    Request URL: ${SEARCH_ENDPOINT}/${api_path}/${obj_name}?api-version=${API_VERSION}"
-                    echo "    Source file: $json_file"
-                    echo ""
-                    echo "    Response body:"
-                    echo "    ----------------------------------------"
-                    cat "$response_file" | jq . 2>/dev/null || cat "$response_file"
-                    echo ""
-                    echo "    ----------------------------------------"
-                    rm -f "$response_file"
-                    echo ""
-                    echo "ERROR: Azure Search deployment failed. Stopping."
-                    exit 1
-                fi
-            done
-        }
-        
-        if [ -d "$AZ_SEARCH_DIR" ]; then
-            echo ""
-            echo "  Deploying Azure Search objects from: $AZ_SEARCH_DIR"
-            
-            # Deploy Knowledge Sources and Knowledge Bases only
-            # Note: Knowledge Sources with indexed types (azureBlob, indexedOneLake, indexedSharePoint)
-            # automatically create their own indexes, datasources, indexers, and skillsets
-            
-            # 1. Knowledge Sources (creates indexes, datasources, indexers, skillsets automatically)
-            deploy_objects "knowledge-sources" "knowledgesources" "Knowledge Source"
-            
-            # 2. Knowledge Bases (depend on knowledge sources)
-            deploy_objects "knowledge-bases" "knowledgebases" "Knowledge Base"
-            
-            echo ""
-            echo "  ✓ Azure Search deployment complete"
-        else
-            echo "  ⚠ Azure Search config directory not found: $AZ_SEARCH_DIR"
-        fi
-    fi
+# Run Python script for Knowledge Sources and Knowledge Bases deployment
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_SCRIPT="$SCRIPT_DIR/configure_search_objects.py"
+REQUIREMENTS_FILE="$SCRIPT_DIR/requirements.txt"
+
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    echo "  ✗ ERROR: Python script not found: $PYTHON_SCRIPT"
+    echo "    Azure Search knowledge bases and sources cannot be configured."
+    exit 1
 fi
+
+echo ""
+echo "  Running Python script for Azure AI Search configuration..."
+
+# Check if Python is available
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+else
+    echo "  ✗ ERROR: Python not found."
+    echo "    Install Python 3.8+ and run: pip install -r $REQUIREMENTS_FILE"
+    echo "    Then run: python $PYTHON_SCRIPT"
+    exit 1
+fi
+
+# Install dependencies if requirements.txt exists
+if [ -f "$REQUIREMENTS_FILE" ]; then
+    echo "  Installing Python dependencies..."
+    $PYTHON_CMD -m pip install -r "$REQUIREMENTS_FILE" --quiet 2>/dev/null || {
+        echo "  ⚠ Warning: Failed to install some dependencies. Attempting to continue..."
+    }
+fi
+
+# Export environment variables for the Python script
+export AZURE_RESOURCE_GROUP
+export AZURE_SEARCH_SERVICE_NAME
+export AZURE_STORAGE_ACCOUNT_NAME
+export AZURE_OPENAI_NAME
+export AZURE_BLOB_CONTAINER_NAME="$BLOB_CONTAINER_NAME"
+
+# Run the Python script
+$PYTHON_CMD "$PYTHON_SCRIPT"
+PYTHON_EXIT_CODE=$?
+
+if [ $PYTHON_EXIT_CODE -ne 0 ]; then
+    echo "  ✗ ERROR: Python script failed with exit code $PYTHON_EXIT_CODE"
+    echo "    Azure Search knowledge bases and sources were NOT deployed."
+    exit 1
+fi
+
+echo "  ✓ Azure AI Search objects deployed successfully"
 
 echo ""
 echo "======================================"
