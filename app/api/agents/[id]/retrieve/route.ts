@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -13,10 +14,13 @@ interface RouteContext {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  const start = Date.now();
   try {
     const params = context.params instanceof Promise ? await context.params : context.params;
     const agentId = params.id;
     const body = await request.json();
+
+    logger.info('Agent retrieve request', { agentId, hasQuery: !!body?.messages });
 
     // Forward end-user authorization token for ACL enforcement if provided
     // Support either canonical header or a legacy alias (if client provided)
@@ -46,6 +50,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         // Response is not JSON
       }
 
+      logger.error('Agent retrieve failed', new Error(`Azure API error: ${response.status}`), {
+        agentId,
+        status: String(response.status),
+        duration: `${Date.now() - start}ms`,
+        errorBody: responseText.slice(0, 500)
+      });
+
       return NextResponse.json({
         error: `Failed to retrieve from agent (${response.status})`,
         azureError: parsedError,
@@ -64,8 +75,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
     }
 
+    logger.info('Agent retrieve success', { agentId, duration: `${Date.now() - start}ms` });
+
     return NextResponse.json(data);
   } catch (error: any) {
+    logger.error('Agent retrieve exception', error, {
+      duration: `${Date.now() - start}ms`
+    });
     return NextResponse.json({
       error: 'Internal server error',
       details: error.message,

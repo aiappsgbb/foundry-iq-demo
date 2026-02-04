@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createRequestLogger } from '@/lib/logger'
 
 // Force dynamic rendering - this route always needs fresh data
 export const dynamic = 'force-dynamic'
@@ -9,9 +10,11 @@ const API_KEY = process.env.AZURE_SEARCH_API_KEY
 const API_VERSION = process.env.AZURE_SEARCH_API_VERSION
 
 export async function GET() {
+  const log = createRequestLogger()
+  
   try {
     if (!ENDPOINT || !API_KEY || !API_VERSION) {
-      console.error('Missing environment variables:', {
+      log.error('Missing environment variables', undefined, {
         hasEndpoint: !!ENDPOINT,
         hasApiKey: !!API_KEY,
         hasApiVersion: !!API_VERSION
@@ -27,7 +30,7 @@ export async function GET() {
     }
 
     const url = `${ENDPOINT}/knowledgebases?api-version=${API_VERSION}`
-    console.log('Fetching knowledge bases from:', url.replace(API_KEY, '***'))
+    log.info('Fetching knowledge bases', { endpoint: ENDPOINT })
 
     const response = await fetch(url, {
       headers: {
@@ -39,7 +42,7 @@ export async function GET() {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Knowledge bases API error:', {
+      log.error('Knowledge bases API error', undefined, {
         status: response.status,
         statusText: response.statusText,
         error: errorText
@@ -51,6 +54,7 @@ export async function GET() {
     }
 
     const data = await response.json()
+    log.info('Knowledge bases fetched successfully', { count: data.value?.length || 0 })
 
     return NextResponse.json(data, {
       headers: {
@@ -60,7 +64,7 @@ export async function GET() {
       }
     })
   } catch (error) {
-    console.error('Knowledge bases API error:', error)
+    log.error('Knowledge bases API exception', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -73,6 +73,10 @@ param azureSubscriptionId string = ''
 @description('Azure Resource Group name')
 param azureResourceGroup string = ''
 
+// Monitoring
+@description('Application Insights connection string')
+param applicationInsightsConnectionString string = ''
+
 resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
   name: staticWebAppName
   location: location
@@ -122,6 +126,9 @@ resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2023-01-01' = {
     // Azure Subscription Info (for management operations)
     AZURE_SUBSCRIPTION_ID: azureSubscriptionId
     AZURE_RESOURCE_GROUP: azureResourceGroup
+    
+    // Monitoring
+    APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsightsConnectionString
   }
 }
 

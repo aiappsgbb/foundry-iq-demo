@@ -93,6 +93,8 @@ var resourceNames = {
   hub: '${baseName}-hub-${uniqueSuffix}'
   project: '${baseName}-prj-${uniqueSuffix}'
   staticWebApp: '${baseName}-web-${uniqueSuffix}'
+  logAnalytics: '${baseName}-${uniqueSuffix}-law'
+  appInsights: '${baseName}-${uniqueSuffix}-appi'
 }
 
 // Tags for all resources
@@ -210,6 +212,17 @@ module foundry 'modules/foundry.bicep' = {
   }
 }
 
+// Deploy Monitoring (Log Analytics + Application Insights)
+module monitoring 'modules/monitoring.bicep' = {
+  name: 'deploy-monitoring'
+  params: {
+    baseName: '${baseName}-${uniqueSuffix}'
+    location: location
+    tags: tags
+    retentionInDays: environment == 'prod' ? 90 : 30
+  }
+}
+
 // Deploy Static Web App
 module staticWebApp 'modules/staticwebapp.bicep' = {
   name: 'deploy-staticwebapp'
@@ -231,6 +244,8 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
     foundryProjectName: foundry.outputs.projectName
     azureSubscriptionId: subscription().subscriptionId
     azureResourceGroup: resourceGroup().name
+    // Monitoring
+    applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
   }
 }
 
@@ -268,6 +283,11 @@ output foundryHubName string = foundry.outputs.hubName
 output staticWebAppUrl string = staticWebApp.outputs.staticWebAppUrl
 output staticWebAppName string = staticWebApp.outputs.staticWebAppName
 
+// Monitoring outputs
+output logAnalyticsWorkspaceId string = monitoring.outputs.logAnalyticsWorkspaceId
+output applicationInsightsName string = monitoring.outputs.applicationInsightsName
+output applicationInsightsConnectionString string = monitoring.outputs.applicationInsightsConnectionString
+
 // Deployment summary
 output deploymentSummary object = {
   message: 'Deployment completed successfully!'
@@ -284,6 +304,7 @@ output deploymentSummary object = {
     storage: resourceNames.storage
     foundry: '${resourceNames.hub} / ${resourceNames.project}'
     staticWebApp: resourceNames.staticWebApp
+    monitoring: '${resourceNames.logAnalytics} / ${resourceNames.appInsights}'
   }
 }
 
