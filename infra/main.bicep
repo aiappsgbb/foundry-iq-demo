@@ -239,6 +239,10 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
     azureSearchEndpoint: search.outputs.searchEndpoint
     azureSearchApiKey: search.outputs.searchAdminKey
     azureSearchApiVersion: '2025-11-01-preview'
+    // Azure OpenAI (for Knowledge Base model calls)
+    azureOpenAIEndpoint: openai.outputs.openAIEndpoint
+    azureOpenAIApiKey: openai.outputs.openAIKey
+    // Foundry (optional, for Agents v2)
     foundryProjectEndpoint: foundry.outputs.projectEndpoint
     foundryApiKey: openai.outputs.openAIKey
     foundryProjectName: foundry.outputs.projectName

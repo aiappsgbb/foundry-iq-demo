@@ -55,11 +55,19 @@ param azureSearchApiKey string = ''
 @description('Azure AI Search API version')
 param azureSearchApiVersion string = '2025-11-01-preview'
 
+// Azure OpenAI (for Knowledge Base model calls)
+@description('Azure OpenAI endpoint URL (e.g., https://{name}.openai.azure.com)')
+param azureOpenAIEndpoint string = ''
+
+@description('Azure OpenAI API key')
+@secure()
+param azureOpenAIApiKey string = ''
+
 // Azure AI Foundry
 @description('Foundry Project endpoint URL')
 param foundryProjectEndpoint string = ''
 
-@description('Foundry API key (for Azure OpenAI access)')
+@description('Foundry API key (for Azure OpenAI access) - DEPRECATED: use azureOpenAIApiKey')
 @secure()
 param foundryApiKey string = ''
 
@@ -115,9 +123,14 @@ resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2023-01-01' = {
     NEXT_PUBLIC_SEARCH_ENDPOINT: azureSearchEndpoint
     NEXT_PUBLIC_AZURE_SEARCH_API_VERSION: azureSearchApiVersion
     
+    // Azure OpenAI (for Knowledge Base model authentication)
+    AZURE_OPENAI_ENDPOINT: azureOpenAIEndpoint
+    AZURE_OPENAI_API_KEY: !empty(azureOpenAIApiKey) ? azureOpenAIApiKey : foundryApiKey
+    NEXT_PUBLIC_AZURE_OPENAI_ENDPOINT: azureOpenAIEndpoint
+    
     // Azure AI Foundry (server-side)
     FOUNDRY_PROJECT_ENDPOINT: foundryProjectEndpoint
-    FOUNDRY_API_KEY: foundryApiKey
+    FOUNDRY_API_KEY: !empty(azureOpenAIApiKey) ? azureOpenAIApiKey : foundryApiKey
     FOUNDRY_PROJECT_NAME: foundryProjectName
     
     // Azure AI Foundry (client-side)
