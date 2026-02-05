@@ -13,6 +13,7 @@ import { SourcesPanel } from '@/components/sources-panel'
 import { SourceKindIcon } from '@/components/source-kind-icon'
 import { MCPToolCallDisplay } from '@/components/mcp-tool-call-display'
 import { RuntimeSettingsPanel } from '@/components/runtime-settings-panel'
+import { ExtractiveDataRenderer, useIsExtractiveData } from '@/components/extractive-data-renderer'
 import { fetchKnowledgeBases, fetchKnowledgeSources, retrieveFromKnowledgeBase } from '../lib/api'
 import { KBViewCodeModal } from '@/components/kb-view-code-modal'
 import { useConversationStarters } from '@/lib/conversationStarters'
@@ -1023,6 +1024,12 @@ function MessageBubble({ message, agent, showCostEstimates, onOpenSources }: {
   onOpenSources?: (refs: Reference[], activity: Activity[], query?: string) => void
 }) {
   const isUser = message.role === 'user'
+  
+  // Get the text content for checking format
+  const textContent = message.content[0]?.text || ''
+  
+  // Check if this is extractive data format
+  const isExtractiveData = useIsExtractiveData(textContent)
 
   // Check if we have trace data (new format)
   const hasTraceData = message.activity && message.activity.length > 0 && message.references
@@ -1060,17 +1067,30 @@ function MessageBubble({ message, agent, showCostEstimates, onOpenSources }: {
             : 'bg-bg-card border border-stroke-divider'
         )}>
           <div className="prose prose-sm max-w-none space-y-3 overflow-x-auto">
-            {message.content.map((content, index) => (
-              <p key={index} className="whitespace-pre-wrap break-words">
-                <InlineCitationsText
-                  text={content.text}
-                  references={message.references as any}
-                  activity={message.activity as any}
-                  messageId={message.id}
-                  onActivate={() => onOpenSources?.(regularRefs, message.activity || [], isUser ? undefined : message.content[0]?.text)}
-                />
-              </p>
-            ))}
+            {/* Check if this is extractive data format (JSON array) */}
+            {!isUser && isExtractiveData ? (
+              <ExtractiveDataRenderer
+                text={textContent}
+                references={message.references as any}
+                onReferenceClick={(refId) => {
+                  // Open sources panel when a reference is clicked
+                  onOpenSources?.(regularRefs, message.activity || [], message.content[0]?.text)
+                }}
+              />
+            ) : (
+              /* Standard text rendering with inline citations */
+              message.content.map((content, index) => (
+                <p key={index} className="whitespace-pre-wrap break-words">
+                  <InlineCitationsText
+                    text={content.text}
+                    references={message.references as any}
+                    activity={message.activity as any}
+                    messageId={message.id}
+                    onActivate={() => onOpenSources?.(regularRefs, message.activity || [], isUser ? undefined : message.content[0]?.text)}
+                  />
+                </p>
+              ))
+            )}
           </div>
 
           {/* Perplexity-style Sources Button - Opens Drawer */}
