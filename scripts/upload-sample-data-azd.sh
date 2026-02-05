@@ -117,10 +117,12 @@ echo ""
 echo "[2/7] Downloading Microsoft Responsible AI Transparency Report..."
 SAMPLE_PDF_URL="https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/msc/documents/presentations/CSR/Responsible-AI-Transparency-Report-2025-vertical.pdf"
 SAMPLE_PDF_NAME="Responsible-AI-Transparency-Report-2025.pdf"
-CONTAINER_NAME="sample-documents"
 
 mkdir -p /tmp/sample-data
 curl -L "$SAMPLE_PDF_URL" -o "/tmp/sample-data/$SAMPLE_PDF_NAME" 2>/dev/null
+
+# Use the same container name as postprovision.sh and configure_search_objects.py
+CONTAINER_NAME="${AZURE_BLOB_CONTAINER_NAME:-foundry-iq-data}"
 
 if [ -f "/tmp/sample-data/$SAMPLE_PDF_NAME" ]; then
     echo "✓ Downloaded: $SAMPLE_PDF_NAME"
