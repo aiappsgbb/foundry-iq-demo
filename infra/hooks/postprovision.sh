@@ -2,11 +2,29 @@
 
 # Post-provision hook for Azure Developer CLI (azd)
 # This script configures RBAC permissions and sets up the deployed resources
+#
+# Usage:
+#   ./postprovision.sh           # Run full provisioning (RBAC + Azure Search objects)
+#   ./postprovision.sh --rbac-only  # Run only RBAC configuration (skip Python/Search objects)
 
 set -e
 
+# Parse command line arguments
+RBAC_ONLY=false
+for arg in "$@"; do
+    case $arg in
+        --rbac-only)
+            RBAC_ONLY=true
+            shift
+            ;;
+    esac
+done
+
 echo "======================================"
 echo "Post-Provision Configuration"
+if [ "$RBAC_ONLY" = true ]; then
+    echo "(RBAC configuration only)"
+fi
 echo "======================================"
 echo ""
 
@@ -134,6 +152,26 @@ fi
 # Step 5: Deploy Azure AI Search Objects
 # ============================================
 # Use Python script for reliable placeholder replacement and Azure SDK access
+
+# Skip this step if --rbac-only flag is set (Python runs in GitHub Actions runner, not in azure/cli container)
+if [ "$RBAC_ONLY" = true ]; then
+    echo ""
+    echo "[5/5] Skipping Azure AI Search Objects deployment (--rbac-only mode)"
+    echo "      Python script will be run separately in GitHub Actions runner."
+    echo ""
+    echo "======================================"
+    echo "✓ RBAC Configuration Complete!"
+    echo "======================================"
+    echo ""
+    echo "Resources configured:"
+    echo "  - Static Web App: $STATIC_WEB_APP_NAME"
+    [ -n "$SEARCH_SERVICE_NAME" ] && echo "  - Search Service: $SEARCH_SERVICE_NAME"
+    [ -n "$STORAGE_ACCOUNT_NAME" ] && echo "  - Storage Account: $STORAGE_ACCOUNT_NAME"
+    [ -n "$OPENAI_NAME" ] && echo "  - OpenAI Service: $OPENAI_NAME"
+    echo ""
+    exit 0
+fi
+
 echo ""
 echo "[5/5] Deploying Azure AI Search Objects..."
 

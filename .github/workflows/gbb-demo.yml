@@ -174,14 +174,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r infra/hooks/requirements.txt
 
-      - name: Run Postprovision Hook
+      - name: Run Postprovision RBAC Configuration
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
-            echo "Running postprovision hook..."
+            echo "Running postprovision RBAC configuration..."
             chmod +x ./infra/hooks/postprovision.sh
-            ./infra/hooks/postprovision.sh
+            # Run only RBAC steps (the script will skip Python when not available in container)
+            ./infra/hooks/postprovision.sh --rbac-only
         env:
           AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
@@ -190,6 +191,17 @@ jobs:
           AZURE_SEARCH_SERVICE_NAME: ${{ steps.get-azd-values.outputs.search-name }}
           AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
           AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.openai-name }}
+
+      - name: Deploy Azure AI Search Objects
+        run: |
+          echo "Deploying Azure AI Search knowledge sources and knowledge bases..."
+          python infra/hooks/configure_search_objects.py
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          AZURE_SEARCH_SERVICE_NAME: ${{ steps.get-azd-values.outputs.search-name }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
+          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.openai-name }}
+          AZURE_BLOB_CONTAINER_NAME: foundry-iq-data
 
       - name: Upload Sample Data
         uses: azure/cli@v2
