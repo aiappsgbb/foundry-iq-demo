@@ -314,6 +314,8 @@ output SERVICE_WEB_ENDPOINT_URL string = staticWebApp.outputs.staticWebAppUrl
 output AZURE_SEARCH_SERVICE_NAME string = search.outputs.searchServiceName
 output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
 output AZURE_AI_SERVICES_NAME string = foundry.outputs.aiServicesName
+// Backward compatibility: Scripts expect AZURE_OPENAI_NAME (now AI Services via Foundry)
+output AZURE_OPENAI_NAME string = foundry.outputs.aiServicesName
 
 // Environment configuration for the web service
 // These values are used by scripts/upload-sample-data-azd.sh

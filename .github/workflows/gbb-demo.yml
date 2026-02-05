@@ -161,7 +161,9 @@ jobs:
           echo "swa-name=$SWA_NAME" >> $GITHUB_OUTPUT
           echo "search-name=$(azd env get-value AZURE_SEARCH_SERVICE_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
           echo "storage-name=$(azd env get-value AZURE_STORAGE_ACCOUNT_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
-          echo "openai-name=$(azd env get-value AZURE_OPENAI_NAME 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          # AI Services name (Foundry) - try both names for compatibility
+          AI_SERVICES_NAME=$(azd env get-value AZURE_AI_SERVICES_NAME 2>/dev/null || azd env get-value AZURE_OPENAI_NAME 2>/dev/null || echo '')
+          echo "ai-services-name=$AI_SERVICES_NAME" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Setup Python
@@ -190,7 +192,9 @@ jobs:
           AZURE_STATIC_WEB_APP_NAME: ${{ steps.get-azd-values.outputs.swa-name }}
           AZURE_SEARCH_SERVICE_NAME: ${{ steps.get-azd-values.outputs.search-name }}
           AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
-          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.openai-name }}
+          # AI Services (Foundry) - used for RBAC configuration
+          AZURE_AI_SERVICES_NAME: ${{ steps.get-azd-values.outputs.ai-services-name }}
+          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.ai-services-name }}
 
       - name: Deploy Azure AI Search Objects
         run: |
@@ -200,7 +204,9 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
           AZURE_SEARCH_SERVICE_NAME: ${{ steps.get-azd-values.outputs.search-name }}
           AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
-          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.openai-name }}
+          # AI Services (Foundry) - provides model endpoints for knowledge bases
+          AZURE_AI_SERVICES_NAME: ${{ steps.get-azd-values.outputs.ai-services-name }}
+          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.ai-services-name }}
           AZURE_BLOB_CONTAINER_NAME: foundry-iq-data
 
       - name: Upload Sample Data

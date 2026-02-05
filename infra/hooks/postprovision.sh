@@ -125,27 +125,29 @@ else
 fi
 
 echo ""
-echo "[4/4] Configuring OpenAI Service RBAC..."
-OPENAI_NAME="${AZURE_OPENAI_NAME:-}"
-if [ -z "$OPENAI_NAME" ]; then
-    OPENAI_NAME=$(az cognitiveservices account list -g "$AZURE_RESOURCE_GROUP" --query "[?kind=='OpenAI'].name | [0]" -o tsv 2>/dev/null || echo "")
+echo "[4/4] Configuring AI Services RBAC..."
+# Support both AZURE_AI_SERVICES_NAME (Foundry) and AZURE_OPENAI_NAME (legacy)
+AI_SERVICES_NAME="${AZURE_AI_SERVICES_NAME:-${AZURE_OPENAI_NAME:-}}"
+if [ -z "$AI_SERVICES_NAME" ]; then
+    # Try to discover AI Services (Foundry) or OpenAI account
+    AI_SERVICES_NAME=$(az cognitiveservices account list -g "$AZURE_RESOURCE_GROUP" --query "[?kind=='AIServices' || kind=='OpenAI'].name | [0]" -o tsv 2>/dev/null || echo "")
 fi
 
-if [ -n "$OPENAI_NAME" ]; then
-    OPENAI_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.CognitiveServices/accounts/$OPENAI_NAME"
+if [ -n "$AI_SERVICES_NAME" ]; then
+    AI_SERVICES_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.CognitiveServices/accounts/$AI_SERVICES_NAME"
     # Check if role already assigned (idempotent)
-    EXISTING_ROLE=$(az role assignment list --assignee "$STATIC_WEB_APP_PRINCIPAL" --role "$COGNITIVE_SERVICES_USER" --scope "$OPENAI_SCOPE" --query "[0].id" -o tsv 2>/dev/null || echo "")
+    EXISTING_ROLE=$(az role assignment list --assignee "$STATIC_WEB_APP_PRINCIPAL" --role "$COGNITIVE_SERVICES_USER" --scope "$AI_SERVICES_SCOPE" --query "[0].id" -o tsv 2>/dev/null || echo "")
     if [ -n "$EXISTING_ROLE" ]; then
         echo "✓ Cognitive Services User role already assigned (skipped)"
     else
         az role assignment create \
             --assignee "$STATIC_WEB_APP_PRINCIPAL" \
             --role "$COGNITIVE_SERVICES_USER" \
-            --scope "$OPENAI_SCOPE" \
-            --output none 2>/dev/null && echo "✓ Cognitive Services User role assigned" || echo "⚠ OpenAI role assignment failed (may already exist)"
+            --scope "$AI_SERVICES_SCOPE" \
+            --output none 2>/dev/null && echo "✓ Cognitive Services User role assigned" || echo "⚠ AI Services role assignment failed (may already exist)"
     fi
 else
-    echo "⚠ No OpenAI service found, skipping RBAC"
+    echo "⚠ No AI Services (Foundry) or OpenAI service found, skipping RBAC"
 fi
 
 # ============================================
@@ -167,7 +169,7 @@ if [ "$RBAC_ONLY" = true ]; then
     echo "  - Static Web App: $STATIC_WEB_APP_NAME"
     [ -n "$SEARCH_SERVICE_NAME" ] && echo "  - Search Service: $SEARCH_SERVICE_NAME"
     [ -n "$STORAGE_ACCOUNT_NAME" ] && echo "  - Storage Account: $STORAGE_ACCOUNT_NAME"
-    [ -n "$OPENAI_NAME" ] && echo "  - OpenAI Service: $OPENAI_NAME"
+    [ -n "$AI_SERVICES_NAME" ] && echo "  - AI Services (Foundry): $AI_SERVICES_NAME"
     echo ""
     exit 0
 fi

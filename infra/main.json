@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.30.3.12046",
-      "templateHash": "7328572534496236210"
+      "templateHash": "6931882293221275149"
     }
   },
   "parameters": {
@@ -1394,6 +1394,10 @@
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2022-09-01').outputs.storageAccountName.value]"
     },
     "AZURE_AI_SERVICES_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value]"
+    },
+    "AZURE_OPENAI_NAME": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value]"
     },
