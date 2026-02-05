@@ -12,7 +12,7 @@ import { InlineCitationsText, SourcesCountButton } from '@/components/inline-cit
 import { SourcesPanel } from '@/components/sources-panel'
 import { SourceKindIcon } from '@/components/source-kind-icon'
 import { MCPToolCallDisplay } from '@/components/mcp-tool-call-display'
-import { RuntimeSettingsPanel } from '@/components/runtime-settings-panel'
+import { RuntimeSettingsPanel, type RuntimeSettings } from '@/components/runtime-settings-panel'
 import { ExtractiveDataRenderer, useIsExtractiveData } from '@/components/extractive-data-renderer'
 import { fetchKnowledgeBases, fetchKnowledgeSources, retrieveFromKnowledgeBase } from '../lib/api'
 import { KBViewCodeModal } from '@/components/kb-view-code-modal'
@@ -136,23 +136,7 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
     }
     return false
   })
-  const [runtimeSettings, setRuntimeSettings] = useState<{
-    outputMode: 'answerSynthesis' | 'extractiveData'
-    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-    globalHeaders?: Record<string, string>
-    answerInstructions?: string
-    retrievalInstructions?: string
-    knowledgeSourceParams: Array<{
-      knowledgeSourceName: string
-      kind: string
-      alwaysQuerySource?: boolean
-      includeReferences?: boolean
-      includeReferenceSourceData?: boolean
-      rerankerThreshold?: number | null
-      maxSubQueries?: number | null
-      headers?: Record<string, string>
-    }>
-  }>({
+  const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettings>({
     outputMode: 'answerSynthesis',
     reasoningEffort: 'low',
     globalHeaders: {},

@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { VoiceInput } from '@/components/ui/voice-input'
 import { ImageInput } from '@/components/ui/image-input'
-import { RuntimeSettingsPanel } from '@/components/runtime-settings-panel'
+import { RuntimeSettingsPanel, type RuntimeSettings } from '@/components/runtime-settings-panel'
 import { ViewCodeModal } from '@/components/view-code-modal'
 import { DocumentViewerModal } from '@/components/document-viewer-modal'
 import { SourceKindIcon } from '@/components/source-kind-icon'
@@ -104,7 +104,8 @@ export function PlaygroundView() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false)
   const [showCodeModal, setShowCodeModal] = useState(false)
-  const [runtimeSettings, setRuntimeSettings] = useState({
+  const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettings>({
+    outputMode: 'answerSynthesis',
     knowledgeSourceParams: []
   })
   const [docViewerUrl, setDocViewerUrl] = useState<string | null>(null)

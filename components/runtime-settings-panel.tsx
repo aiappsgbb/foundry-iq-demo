@@ -106,9 +106,9 @@ type KnowledgeSourceParam = {
   freshness?: string | null                // web only
 }
 
-interface RuntimeSettings {
+export interface RuntimeSettings {
   knowledgeSourceParams: KnowledgeSourceParam[]
-  outputMode?: 'answerSynthesis' | 'extractiveData'
+  outputMode: 'answerSynthesis' | 'extractiveData'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   globalHeaders?: Record<string, string>
   answerInstructions?: string

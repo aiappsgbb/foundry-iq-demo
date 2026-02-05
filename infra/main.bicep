@@ -55,19 +55,16 @@ param embeddingModelName string = 'text-embedding-3-small'
 var skuMap = {
   dev: {
     search: 'basic'
-    openai: 'S0'
     storage: 'Standard_LRS'
     staticWebApp: 'Standard'
   }
   staging: {
     search: 'standard'
-    openai: 'S0'
     storage: 'Standard_LRS'
     staticWebApp: 'Standard'
   }
   prod: {
     search: 'standard'
-    openai: 'S0'
     storage: 'Standard_GRS'
     staticWebApp: 'Standard'
   }
@@ -166,26 +163,6 @@ module search 'modules/search.bicep' = {
   }
 }
 
-// Deploy Azure OpenAI with models
-// Using user-selected models with safe default capacities
-module openai 'modules/openai.bicep' = {
-  name: 'deploy-openai'
-  params: {
-    openAIName: resourceNames.openai
-    location: location
-    sku: skuMap[environment].openai
-    tags: tags
-    embeddingDeploymentName: embeddingModelName
-    embeddingModelName: embeddingModelName
-    embeddingModelVersion: embeddingModelConfig[embeddingModelName].version
-    embeddingCapacity: embeddingModelConfig[embeddingModelName].capacity
-    chatDeploymentName: chatModelName
-    chatModelName: chatModelName
-    chatModelVersion: chatModelConfig[chatModelName].version
-    chatCapacity: chatModelConfig[chatModelName].capacity
-  }
-}
-
 // Deploy Storage Account
 module storage 'modules/storage.bicep' = {
   name: 'deploy-storage'
@@ -198,17 +175,23 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
-// Deploy AI Foundry Hub and Project
+// Deploy AI Foundry Hub, Project, and AI Services with model deployments
+// This replaces the standalone OpenAI module - all models are now deployed via Foundry
 module foundry 'modules/foundry.bicep' = {
   name: 'deploy-foundry'
   params: {
     hubName: resourceNames.hub
     projectName: resourceNames.project
+    aiServicesName: resourceNames.openai // Reuse openai naming for AI Services
     location: location
     tags: tags
-    openAIResourceId: openai.outputs.openAIId
     searchResourceId: search.outputs.searchServiceId
     storageAccountId: storage.outputs.storageAccountId
+    // Model deployments
+    chatModelName: chatModelName
+    embeddingModelName: embeddingModelName
+    chatCapacity: chatModelConfig[chatModelName].capacity
+    embeddingCapacity: embeddingModelConfig[embeddingModelName].capacity
   }
 }
 
@@ -239,12 +222,12 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
     azureSearchEndpoint: search.outputs.searchEndpoint
     azureSearchApiKey: search.outputs.searchAdminKey
     azureSearchApiVersion: '2025-11-01-preview'
-    // Azure OpenAI (for Knowledge Base model calls)
-    azureOpenAIEndpoint: openai.outputs.openAIEndpoint
-    azureOpenAIApiKey: openai.outputs.openAIKey
-    // Foundry (optional, for Agents v2)
+    // Azure AI Services via Foundry (for Knowledge Base model calls)
+    azureOpenAIEndpoint: foundry.outputs.aiServicesEndpoint
+    azureOpenAIApiKey: foundry.outputs.aiServicesKey
+    // Foundry Project (for Agents and unified AI)
     foundryProjectEndpoint: foundry.outputs.projectEndpoint
-    foundryApiKey: openai.outputs.openAIKey
+    foundryApiKey: foundry.outputs.aiServicesKey
     foundryProjectName: foundry.outputs.projectName
     azureSubscriptionId: subscription().subscriptionId
     azureResourceGroup: resourceGroup().name
@@ -267,11 +250,12 @@ output searchEndpoint string = search.outputs.searchEndpoint
 output searchServiceName string = search.outputs.searchServiceName
 output searchAdminKey string = search.outputs.searchAdminKey
 
-// OpenAI outputs
-output openAIEndpoint string = openai.outputs.openAIEndpoint
-output openAIKey string = openai.outputs.openAIKey
-output embeddingDeploymentName string = openai.outputs.embeddingDeploymentName
-output chatDeploymentName string = openai.outputs.chatDeploymentName
+// AI Services outputs (unified model hosting via Foundry)
+output openAIEndpoint string = foundry.outputs.aiServicesEndpoint
+output openAIKey string = foundry.outputs.aiServicesKey
+output embeddingDeploymentName string = foundry.outputs.embeddingDeploymentName
+output chatDeploymentName string = foundry.outputs.chatDeploymentName
+output aiServicesName string = foundry.outputs.aiServicesName
 
 // Storage outputs
 output storageAccountName string = storage.outputs.storageAccountName
@@ -304,7 +288,7 @@ output deploymentSummary object = {
   estimatedMonthlyCost: environment == 'dev' ? '$100-150' : environment == 'staging' ? '$250-350' : '$500+'
   resources: {
     search: resourceNames.search
-    openai: resourceNames.openai
+    aiServices: resourceNames.openai  // AI Services (models deployed via Foundry)
     storage: resourceNames.storage
     foundry: '${resourceNames.hub} / ${resourceNames.project}'
     staticWebApp: resourceNames.staticWebApp
@@ -329,10 +313,10 @@ output SERVICE_WEB_ENDPOINT_URL string = staticWebApp.outputs.staticWebAppUrl
 // Used by infra/hooks/postprovision.sh to configure role assignments
 output AZURE_SEARCH_SERVICE_NAME string = search.outputs.searchServiceName
 output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
-output AZURE_OPENAI_NAME string = openai.outputs.openAIName
+output AZURE_AI_SERVICES_NAME string = foundry.outputs.aiServicesName
 
 // Environment configuration for the web service
 // These values are used by scripts/upload-sample-data-azd.sh
 output AZURE_SEARCH_ENDPOINT string = search.outputs.searchEndpoint
-output AZURE_OPENAI_ENDPOINT string = openai.outputs.openAIEndpoint
+output AZURE_OPENAI_ENDPOINT string = foundry.outputs.aiServicesEndpoint
 output AZURE_FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
