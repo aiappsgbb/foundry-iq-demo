@@ -119,7 +119,7 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(true)
   const [viewCodeOpen, setViewCodeOpen] = useState(false)
   const [sourcesPanel, setSourcesPanel] = useState<{
     isOpen: boolean
@@ -137,7 +137,7 @@ export function KBPlaygroundView({ preselectedAgent }: KBPlaygroundViewProps) {
     return false
   })
   const [runtimeSettings, setRuntimeSettings] = useState<{
-    outputMode?: 'answerSynthesis' | 'extractiveData'
+    outputMode: 'answerSynthesis' | 'extractiveData'
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
     globalHeaders?: Record<string, string>
     answerInstructions?: string
