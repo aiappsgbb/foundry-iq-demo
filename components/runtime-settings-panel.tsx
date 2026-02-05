@@ -89,7 +89,7 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
   )
 }
 
-type KnowledgeSourceParam = {
+export type KnowledgeSourceParam = {
   knowledgeSourceName: string
   kind: string
   alwaysQuerySource?: boolean
