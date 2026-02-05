@@ -131,9 +131,9 @@ def get_ai_services_credentials(
     try:
         client = CognitiveServicesManagementClient(credential, subscription_id)
         
-        # Find CognitiveServices (multi-service) account
+        # Find CognitiveServices (multi-service) or AIServices account
         for account in client.accounts.list_by_resource_group(resource_group):
-            if account.kind == "CognitiveServices":
+            if account.kind in ("CognitiveServices", "AIServices"):
                 endpoint = account.properties.endpoint.rstrip("/")
                 keys = client.accounts.list_keys(resource_group, account.name)
                 return endpoint, keys.key1
@@ -461,16 +461,17 @@ def main():
         )
         logger.info(f"  ✓ Storage: {storage_account_name}")
         
-        # Get OpenAI credentials
+        # Get OpenAI/AI Services credentials (Foundry uses AIServices kind)
         if not openai_name:
-            logger.info("  Discovering OpenAI account...")
+            logger.info("  Discovering OpenAI/AI Services account...")
             cog_client = CognitiveServicesManagementClient(credential, subscription_id)
             for account in cog_client.accounts.list_by_resource_group(resource_group):
-                if account.kind == "OpenAI":
+                # Support both standalone OpenAI and Foundry's AIServices
+                if account.kind in ("OpenAI", "AIServices"):
                     openai_name = account.name
                     break
             if not openai_name:
-                logger.error("  ✗ No OpenAI service found in resource group")
+                logger.error("  ✗ No OpenAI or AI Services account found in resource group")
                 sys.exit(1)
         
         openai_endpoint, openai_key = get_openai_credentials(
