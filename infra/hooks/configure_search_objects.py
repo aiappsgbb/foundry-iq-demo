@@ -282,6 +282,30 @@ def replace_placeholders_in_knowledge_base(
     return kb_data
 
 
+def knowledge_source_exists(
+    search_endpoint: str,
+    search_key: str,
+    source_name: str
+) -> bool:
+    """
+    Check if a knowledge source already exists in Azure AI Search.
+    
+    Returns:
+        True if exists, False otherwise
+    """
+    url = f"{search_endpoint}/knowledgesources/{source_name}?api-version={API_VERSION}"
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": search_key
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
+
+
 def deploy_knowledge_source(
     search_endpoint: str,
     search_key: str,
@@ -324,6 +348,30 @@ def deploy_knowledge_source(
             
     except requests.RequestException as e:
         logger.error(f"    Request failed: {e}")
+        return False
+
+
+def knowledge_base_exists(
+    search_endpoint: str,
+    search_key: str,
+    kb_name: str
+) -> bool:
+    """
+    Check if a knowledge base already exists in Azure AI Search.
+    
+    Returns:
+        True if exists, False otherwise
+    """
+    url = f"{search_endpoint}/knowledgebases/{kb_name}?api-version={API_VERSION}"
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": search_key
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        return response.status_code == 200
+    except requests.RequestException:
         return False
 
 
@@ -514,7 +562,12 @@ def main():
         
         for source_file in source_files:
             source_name = source_file.stem
-            logger.info(f"  Deploying: {source_name}")
+            logger.info(f"  Processing: {source_name}")
+            
+            # Check if already exists (idempotent)
+            if knowledge_source_exists(search_endpoint, search_key, source_name):
+                logger.info(f"    ○ {source_name} - already exists, skipping")
+                continue
             
             try:
                 with open(source_file, "r", encoding="utf-8") as f:
@@ -556,7 +609,12 @@ def main():
         
         for kb_file in kb_files:
             kb_name = kb_file.stem
-            logger.info(f"  Deploying: {kb_name}")
+            logger.info(f"  Processing: {kb_name}")
+            
+            # Check if already exists (idempotent)
+            if knowledge_base_exists(search_endpoint, search_key, kb_name):
+                logger.info(f"    ○ {kb_name} - already exists, skipping")
+                continue
             
             try:
                 with open(kb_file, "r", encoding="utf-8") as f:
