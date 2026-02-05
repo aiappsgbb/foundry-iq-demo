@@ -236,10 +236,17 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
   }
 }
 
-// Role assignments for Managed Identity
-// Note: Role assignments commented out as they require outputs that aren't available at compile time
-// They can be added post-deployment via a script or manually in the portal
-// See scripts/configure-rbac.sh for automated role assignment setup
+// Deploy RBAC Role Assignments for Static Web App Managed Identity
+// This assigns Search Index Data Contributor, Storage Blob Data Contributor, and Cognitive Services User roles
+module rbac 'modules/rbac.bicep' = {
+  name: 'deploy-rbac'
+  params: {
+    staticWebAppPrincipalId: staticWebApp.outputs.staticWebAppPrincipalId
+    searchServiceId: search.outputs.searchServiceId
+    storageAccountId: storage.outputs.storageAccountId
+    aiServicesId: foundry.outputs.aiServicesId
+  }
+}
 
 // Outputs for application configuration
 output resourceGroupName string = resourceGroup().name
@@ -261,6 +268,7 @@ output aiServicesName string = foundry.outputs.aiServicesName
 output storageAccountName string = storage.outputs.storageAccountName
 output storageConnectionString string = storage.outputs.storageConnectionString
 output sampleDataContainerName string = storage.outputs.sampleDataContainerName
+output knowledgeDataContainerName string = storage.outputs.knowledgeDataContainerName
 
 // Foundry outputs
 output foundryProjectEndpoint string = foundry.outputs.projectEndpoint

@@ -21,6 +21,9 @@ param tags object = {}
 @description('Container name for sample data')
 param sampleDataContainerName string = 'sample-documents'
 
+@description('Container name for knowledge source data (used by Azure AI Search)')
+param knowledgeDataContainerName string = 'foundry-iq-data'
+
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
@@ -69,10 +72,20 @@ resource sampleContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
   }
 }
 
+// Create knowledge data container (for Azure AI Search knowledge sources)
+resource knowledgeContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: knowledgeDataContainerName
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
 // Output storage account details
 output storageAccountId string = storageAccount.id
 output storageAccountName string = storageAccount.name
 output storageAccountPrimaryEndpoint string = storageAccount.properties.primaryEndpoints.blob
 output sampleDataContainerName string = sampleContainer.name
+output knowledgeDataContainerName string = knowledgeContainer.name
 output storageAccountKey string = storageAccount.listKeys().keys[0].value
 output storageConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'

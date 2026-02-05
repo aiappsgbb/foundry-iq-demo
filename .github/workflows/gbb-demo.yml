@@ -176,25 +176,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r infra/hooks/requirements.txt
 
-      - name: Run Postprovision RBAC Configuration
-        uses: azure/cli@v2
-        with:
-          azcliversion: latest
-          inlineScript: |
-            echo "Running postprovision RBAC configuration..."
-            chmod +x ./infra/hooks/postprovision.sh
-            # Run only RBAC steps (the script will skip Python when not available in container)
-            ./infra/hooks/postprovision.sh --rbac-only
-        env:
-          AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}
-          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
-          AZURE_LOCATION: ${{ env.AZURE_LOCATION }}
-          AZURE_STATIC_WEB_APP_NAME: ${{ steps.get-azd-values.outputs.swa-name }}
-          AZURE_SEARCH_SERVICE_NAME: ${{ steps.get-azd-values.outputs.search-name }}
-          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.get-azd-values.outputs.storage-name }}
-          # AI Services (Foundry) - used for RBAC configuration
-          AZURE_AI_SERVICES_NAME: ${{ steps.get-azd-values.outputs.ai-services-name }}
-          AZURE_OPENAI_NAME: ${{ steps.get-azd-values.outputs.ai-services-name }}
+      # NOTE: RBAC role assignments are now handled in Bicep (infra/modules/rbac.bicep)
+      # No additional RBAC configuration step needed
 
       - name: Deploy Azure AI Search Objects
         run: |

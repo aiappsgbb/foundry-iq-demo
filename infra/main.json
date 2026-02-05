@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.30.3.12046",
-      "templateHash": "6931882293221275149"
+      "templateHash": "10796879029793376536"
     }
   },
   "parameters": {
@@ -327,7 +327,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.30.3.12046",
-              "templateHash": "2107858829095817671"
+              "templateHash": "3283605098683167558"
             }
           },
           "parameters": {
@@ -370,6 +370,13 @@
               "defaultValue": "sample-documents",
               "metadata": {
                 "description": "Container name for sample data"
+              }
+            },
+            "knowledgeDataContainerName": {
+              "type": "string",
+              "defaultValue": "foundry-iq-data",
+              "metadata": {
+                "description": "Container name for knowledge source data (used by Azure AI Search)"
               }
             }
           },
@@ -426,6 +433,17 @@
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]"
               ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('knowledgeDataContainerName'))]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]"
+              ]
             }
           ],
           "outputs": {
@@ -444,6 +462,10 @@
             "sampleDataContainerName": {
               "type": "string",
               "value": "[parameters('sampleDataContainerName')]"
+            },
+            "knowledgeDataContainerName": {
+              "type": "string",
+              "value": "[parameters('knowledgeDataContainerName')]"
             },
             "storageAccountKey": {
               "type": "string",
@@ -1269,6 +1291,136 @@
         "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]"
       ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-rbac",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "staticWebAppPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppPrincipalId.value]"
+          },
+          "searchServiceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2022-09-01').outputs.searchServiceId.value]"
+          },
+          "storageAccountId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2022-09-01').outputs.storageAccountId.value]"
+          },
+          "aiServicesId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.30.3.12046",
+              "templateHash": "5121340955354420410"
+            }
+          },
+          "parameters": {
+            "staticWebAppPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the Static Web App managed identity"
+              }
+            },
+            "searchServiceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Search Service resource ID"
+              }
+            },
+            "storageAccountId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Storage Account resource ID"
+              }
+            },
+            "aiServicesId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "AI Services (Foundry) resource ID"
+              }
+            }
+          },
+          "variables": {
+            "roleDefinitions": {
+              "searchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
+              "storageBlobDataContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+              "cognitiveServicesUser": "a97b65f3-24c7-4388-baec-2e87135dc908"
+            }
+          },
+          "resources": [
+            {
+              "condition": "[not(empty(parameters('searchServiceId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Search/searchServices/{0}', last(split(parameters('searchServiceId'), '/')))]",
+              "name": "[guid(parameters('searchServiceId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').searchIndexDataContributor)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').searchIndexDataContributor)]",
+                "principalId": "[parameters('staticWebAppPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('storageAccountId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', last(split(parameters('storageAccountId'), '/')))]",
+              "name": "[guid(parameters('storageAccountId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').storageBlobDataContributor)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').storageBlobDataContributor)]",
+                "principalId": "[parameters('staticWebAppPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('aiServicesId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.CognitiveServices/accounts/{0}', last(split(parameters('aiServicesId'), '/')))]",
+              "name": "[guid(parameters('aiServicesId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').cognitiveServicesUser)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').cognitiveServicesUser)]",
+                "principalId": "[parameters('staticWebAppPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ],
+          "outputs": {
+            "searchRoleAssignmentId": {
+              "type": "string",
+              "value": "[if(not(empty(parameters('searchServiceId'))), extensionResourceId(resourceId('Microsoft.Search/searchServices', last(split(parameters('searchServiceId'), '/'))), 'Microsoft.Authorization/roleAssignments', guid(parameters('searchServiceId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').searchIndexDataContributor)), '')]"
+            },
+            "storageRoleAssignmentId": {
+              "type": "string",
+              "value": "[if(not(empty(parameters('storageAccountId'))), extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', last(split(parameters('storageAccountId'), '/'))), 'Microsoft.Authorization/roleAssignments', guid(parameters('storageAccountId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').storageBlobDataContributor)), '')]"
+            },
+            "aiServicesRoleAssignmentId": {
+              "type": "string",
+              "value": "[if(not(empty(parameters('aiServicesId'))), extensionResourceId(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('aiServicesId'), '/'))), 'Microsoft.Authorization/roleAssignments', guid(parameters('aiServicesId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').cognitiveServicesUser)), '')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-foundry')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-storage')]"
+      ]
     }
   ],
   "outputs": {
@@ -1323,6 +1475,10 @@
     "sampleDataContainerName": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2022-09-01').outputs.sampleDataContainerName.value]"
+    },
+    "knowledgeDataContainerName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2022-09-01').outputs.knowledgeDataContainerName.value]"
     },
     "foundryProjectEndpoint": {
       "type": "string",
