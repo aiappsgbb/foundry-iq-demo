@@ -177,7 +177,46 @@ jobs:
           pip install -r infra/hooks/requirements.txt
 
       # NOTE: RBAC role assignments are now handled in Bicep (infra/modules/rbac.bicep)
-      # No additional RBAC configuration step needed
+      # TEMPORARY: Clean up old RBAC assignments created by postprovision.sh
+      # so Bicep can recreate them with deterministic GUIDs.
+      # TODO: Remove this step after first successful deployment.
+      - name: Cleanup Old RBAC Assignments (temporary)
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            echo "Cleaning up old RBAC role assignments..."
+            
+            SWA_NAME="${{ steps.get-azd-values.outputs.swa-name }}"
+            RG="$AZURE_RESOURCE_GROUP"
+            
+            PRINCIPAL_ID=$(az staticwebapp show -n "$SWA_NAME" -g "$RG" --query "identity.principalId" -o tsv 2>/dev/null || echo "")
+            
+            if [ -z "$PRINCIPAL_ID" ] || [ "$PRINCIPAL_ID" = "null" ]; then
+              echo "No SWA managed identity found — skipping cleanup."
+            else
+              echo "SWA Principal: $PRINCIPAL_ID"
+              
+              # Get all role assignments for this principal in the resource group
+              ASSIGNMENT_IDS=$(az role assignment list \
+                --assignee "$PRINCIPAL_ID" \
+                --resource-group "$RG" \
+                --query "[].id" -o tsv 2>/dev/null || echo "")
+              
+              if [ -z "$ASSIGNMENT_IDS" ]; then
+                echo "No existing role assignments to clean up."
+              else
+                COUNT=0
+                while IFS= read -r AID; do
+                  if [ -n "$AID" ]; then
+                    echo "  Removing: $AID"
+                    az role assignment delete --ids "$AID" --output none 2>/dev/null || true
+                    COUNT=$((COUNT + 1))
+                  fi
+                done <<< "$ASSIGNMENT_IDS"
+                echo "✓ Removed $COUNT old role assignment(s). Bicep will recreate them."
+              fi
+            fi
 
       - name: Deploy Azure AI Search Objects
         run: |
