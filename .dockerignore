@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.devcontainer
+data
+docs
+notebooks
+scripts
+specs
+infra
+*.md
+.env*
+.gitignore

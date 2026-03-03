@@ -1,0 +1,52 @@
+# Azure Static Web Apps ignore file
+# For hybrid Next.js apps, SWA's Oryx builder needs access to the source code.
+# This file excludes files that should NOT be deployed to Azure Static Web Apps.
+
+# Next.js build cache (rebuilt by SWA's Oryx builder)
+.next/cache/
+
+# Development and version control
+.git/
+.github/
+.devcontainer/
+.vscode/
+.idea/
+.claude/
+
+# Infrastructure (not needed at runtime)
+infra/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Documentation
+docs/
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+
+# HTTP test files
+*.http
+*.http.mcp.json
+
+# Deployment scripts (not needed at runtime)
+deploy-to-azure.ps1
+configure-env-vars.ps1
+
+# Vercel-specific files
+.vercelignore
+vercel.json
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+*.log
+
+# Token files (development only)
+tokens.json

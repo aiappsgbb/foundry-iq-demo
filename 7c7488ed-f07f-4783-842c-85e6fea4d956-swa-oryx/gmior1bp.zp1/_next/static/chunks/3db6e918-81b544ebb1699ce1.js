@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[7881],{8475:function(e,u,c){c.d(u,{NXL:function(){return k}});let k=(0,c(1325).k)("Checkmark20Regular","20",["M3.37 10.17a.5.5 0 0 0-.74.66l4 4.5c.19.22.52.23.72.02l10.5-10.5a.5.5 0 0 0-.7-.7L7.02 14.27l-3.65-4.1Z"])}}]);

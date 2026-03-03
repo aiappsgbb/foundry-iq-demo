@@ -1,0 +1,102 @@
+# Azure Developer CLI (azd) configuration
+# This file defines the services and infrastructure for the Foundry IQ Demo application
+
+name: foundry-iq-demo
+metadata:
+  template: microsoft-foundry-iq-demo@1.0.0
+
+# Infrastructure configuration
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+# Service definitions
+services:
+  web:
+    project: .
+    host: containerapp
+    language: js
+    docker:
+      path: ./Dockerfile
+      remoteBuild: true
+
+# Hooks for custom scripts
+hooks:
+  # Post-provision hook: configure search objects + upload sample data
+  postprovision:
+    shell: pwsh
+    run: |
+      # --- 1. Deploy Azure AI Search knowledge sources & knowledge bases ---
+      Write-Host "`n=== Configuring Azure AI Search objects ===`n"
+      pip install -r ./infra/hooks/requirements.txt -q 2>$null
+      python ./infra/hooks/configure_search_objects.py
+
+      # --- 2. Upload sample data to Azure Blob Storage ---
+      Write-Host "`n=== Uploading sample data to Blob Storage ===`n"
+      $storageAccount = (azd env get-value AZURE_STORAGE_ACCOUNT_NAME 2>$null)
+      $subscriptionId = (azd env get-value AZURE_SUBSCRIPTION_ID 2>$null)
+      $containerName  = "foundry-iq-data"
+      $localDataDir   = Join-Path $PSScriptRoot "data" "blob" $containerName
+
+      # Ensure az CLI is set to the right subscription (multi-tenant support)
+      az account set --subscription $subscriptionId 2>$null
+
+      # Grant current user Storage Blob Data Contributor on the storage account
+      # (needed for upload; Azure Policy may block shared-key access)
+      $currentUserId = (az ad signed-in-user show --query id -o tsv 2>$null)
+      if ($currentUserId) {
+        $resourceGroup = (azd env get-value AZURE_RESOURCE_GROUP 2>$null)
+        Write-Host "  Granting Storage Blob Data Contributor to current user..."
+        az role assignment create `
+          --assignee $currentUserId `
+          --role "Storage Blob Data Contributor" `
+          --scope "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Storage/storageAccounts/$storageAccount" `
+          --output none 2>$null
+      }
+
+      if (-not (Test-Path $localDataDir)) {
+        # Try relative to repo root (azd runs hooks from repo root)
+        $localDataDir = Join-Path "." "data" "blob" $containerName
+      }
+
+      if (Test-Path $localDataDir) {
+        Write-Host "  Source : $localDataDir"
+        Write-Host "  Target : $storageAccount / $containerName"
+        az storage container create --account-name $storageAccount --name $containerName --auth-mode login --subscription $subscriptionId --output none 2>$null
+        
+        # Retry upload (RBAC propagation can take 1-2 minutes)
+        $maxRetries = 5
+        $retryDelay = 30
+        for ($i = 1; $i -le $maxRetries; $i++) {
+          $uploadResult = az storage blob upload-batch --account-name $storageAccount --destination $containerName --source $localDataDir --auth-mode login --subscription $subscriptionId --overwrite --output none 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "  Uploaded sample data to container: $containerName"
+            break
+          }
+          if ($i -lt $maxRetries) {
+            Write-Host "  Upload attempt $i/$maxRetries failed (RBAC propagating), retrying in ${retryDelay}s..."
+            Start-Sleep -Seconds $retryDelay
+          } else {
+            Write-Host "  WARNING: Sample data upload failed after $maxRetries attempts. Upload manually later:"
+            Write-Host "    az storage blob upload-batch --account-name $storageAccount --destination $containerName --source data/blob/$containerName --auth-mode login --overwrite"
+          }
+        }
+      } else {
+        Write-Host "  WARNING: Sample data directory not found: data/blob/$containerName"
+        Write-Host "  Knowledge sources will be created but will have no documents to index."
+        Write-Host "  Place PDF files in data/blob/$containerName/ and re-run 'azd provision' to upload."
+      }
+    continueOnError: false
+
+# =====================================================================
+# LOCAL DEVELOPER DEPLOYMENT GUIDE
+# =====================================================================
+# Quick start (local clone / fork):
+#   1. az login && azd auth login
+#   2. azd init -e <your-env-name>        # first time only
+#   3. azd up                             # provisions infra + deploys app
+#
+# To update just the app (no infra changes):
+#   azd deploy
+# =====================================================================
