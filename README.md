@@ -1,29 +1,27 @@
 # Microsoft Foundry IQ Demo
+
 <img width="1289" height="495" alt="image" src="https://github.com/user-attachments/assets/7ec01135-f72f-4113-aaaf-8b637fcf27b4" />
 
-Agentic RAG demo with Foundry IQ Knowledge Bases and Microsoft Foundry Agent Service.
+Agentic RAG demo with Foundry IQ Knowledge Bases and Microsoft Foundry Agent Service. Deploys to **Azure Container Apps** via `azd up` with fully identity-based authentication (zero API keys).
 
-🚀 [Live Demo](https://azure-ai-search-knowledge-retrieval.vercel.app/)
+## Deploy with Azure Developer CLI (azd)
 
-## Deploy
-
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Ffarzad528%2Fazure-ai-search-knowledge-retrieval-demo%2Fmain%2Finfra%2Fmain.json)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ffarzad528%2Fazure-ai-search-knowledge-retrieval-demo)
-
-### Deploy with Azure Developer CLI (azd)
-
-The recommended way to deploy this application is using Azure Developer CLI (azd).
+`azd up` provisions all Azure resources, configures Azure AI Search knowledge bases, uploads sample data, builds the Docker image remotely in ACR, and deploys to Azure Container Apps — all in a single command.
 
 **Prerequisites:**
+
 - [Azure Developer CLI (azd)](https://aka.ms/install-azd)
 - [Azure CLI](https://aka.ms/installazurecli)
-- Node.js 18+
-- Python 3.8+ (required for post-provision hooks that configure Azure AI Search objects)
+- Python 3.8+ (for post-provision hooks)
+
+> **Note:** Node.js and Docker are **not** required locally — the Docker image is built remotely in Azure Container Registry.
 
 **Steps:**
 
 ```bash
-# 1. Install azd: https://aka.ms/install-azd
+# 1. Clone the repository
+git clone https://github.com/aiappsgbb/foundry-iq-demo.git
+cd foundry-iq-demo
 
 # 2. Set up a Python virtual environment for post-provision dependencies
 python -m venv .venv
@@ -35,75 +33,109 @@ python -m venv .venv
 # 3. Install Python dependencies used by post-provision hooks
 pip install -r infra/hooks/requirements.txt
 
-# 4. Login and provision infrastructure
-#    (this also runs the postprovision hook which deploys AI Search objects)
+# 4. Login and deploy everything
 azd auth login
-azd provision
-
-# 5. Upload sample data (hotels index, sample PDF, knowledge source/base)
-#    Requires Azure CLI login: az login
-#    Windows: run via Git Bash, WSL, or any bash-compatible shell
-./scripts/upload-sample-data-azd.sh
+az login          # Required for sample data upload
+azd up
 ```
 
-After provisioning and sample data are done, deploy the app to Azure Static Web Apps:
+That's it. `azd up` handles provisioning, search object configuration, sample data upload, remote Docker build, and deployment.
 
-```bash
-# 6. Deploy to SWA (works on Windows, macOS, and Linux)
-python scripts/deploy-swa.py
-# or: npm run deploy:swa
-```
-
-The deploy script reads your `azd` environment, retrieves the SWA deployment token via Azure CLI, runs `npm run build`, and deploys using the SWA CLI (installed automatically if missing) — the same flow used by the CI workflow.
-
-Alternatively, push to GitHub and let the CI workflow ([gbb-demo.yml](.github/workflows/gbb-demo.yml)) handle steps 5–6 automatically.
-
-> **Windows note:** `upload-sample-data-azd.sh` is a bash script. On Windows, run it via [Git Bash](https://gitforwindows.org/) (included with Git for Windows) or WSL.
-
-> **Why not `azd up`?** `azd deploy` does not fully support Azure Static Web Apps with hybrid Next.js. The provision step works, but the deploy step may fail. Use the deploy script or CI workflow instead.
-
-> **Why a Python venv?** The `postprovision` hook runs a Python script (`infra/hooks/configure_search_objects.py`) that uses Azure SDKs to create Knowledge Sources and Knowledge Bases in Azure AI Search (these aren't supported in ARM/Bicep). Without a venv, `pip install` writes packages into your global Python environment.
+> **Why a Python venv?** The `postprovision` hook runs `infra/hooks/configure_search_objects.py` which uses Azure SDKs to create Knowledge Sources and Knowledge Bases in Azure AI Search (these aren't supported in ARM/Bicep). Without a venv, `pip install` writes packages into your global Python environment.
 
 See [AZD Deployment Guide](./docs/AZD_DEPLOYMENT.md) for detailed instructions.
 
-## Quick Start
+## Quick Start (Local Development)
 
 ```bash
-git clone https://github.com/farzad528/azure-ai-search-knowledge-retrieval-demo.git
-cd azure-ai-search-knowledge-retrieval-demo
+git clone https://github.com/aiappsgbb/foundry-iq-demo.git
+cd foundry-iq-demo
 npm install
 cp .env.example .env.local
-# Edit .env.local with your Azure credentials
+# Edit .env.local with your Azure resource endpoints
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
 
+## Authentication
+
+This application uses **Entra ID (managed identity)** for all Azure service authentication — **no API keys are stored or required**.
+
+- **Azure AI Search**: Bearer tokens via `DefaultAzureCredential` with scope `https://search.azure.com/.default`
+- **Azure OpenAI / AI Services**: Search service's system-assigned managed identity (no keys)
+- **Azure Blob Storage**: ResourceId-based connection string (identity auth)
+
+For local development, `DefaultAzureCredential` picks up your `az login` or `azd auth login` session automatically.
+
 ## Environment Variables
 
-See `.env.example` for all options. Required:
+See `.env.example` for all options. Required for local development:
 
 ```
 AZURE_SEARCH_ENDPOINT=https://<your-search>.search.windows.net
-AZURE_SEARCH_API_KEY=<admin-or-query-key>
-NEXT_PUBLIC_AZURE_OPENAI_ENDPOINT=https://<your-openai>.openai.azure.com
-AZURE_OPENAI_API_KEY=<openai-key>
+AZURE_SEARCH_API_VERSION=2025-11-01-preview
 ```
+
+When deployed via `azd`, all environment variables are configured automatically on the container app.
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Azure Container Apps (Next.js)                   │
+│            Identity: System-assigned managed identity         │
+└──────────────┬──────────────────────┬────────────────────────┘
+               │                      │
+               ▼                      ▼
+ ┌─────────────────────┐   ┌─────────────────────┐
+ │   Azure AI Search   │   │    Azure OpenAI     │
+ │  (Knowledge Bases)  │   │ (Embeddings & Chat) │
+ │  Identity: system MI│   └─────────────────────┘
+ └─────────┬───────────┘              │
+           │                          │
+           ▼                          ▼
+ ┌─────────────────────┐   ┌─────────────────────────────┐
+ │  Azure Blob Storage │   │   Azure AI Foundry Project  │
+ │   (Documents)       │   │   (Agent Orchestration)     │
+ └─────────────────────┘   └─────────────────────────────┘
+```
+
+**RBAC assignments (configured automatically by Bicep):**
+- Container App → Search Index Data Contributor + Search Service Contributor
+- Container App → Storage Blob Data Contributor
+- Container App → Cognitive Services User
+- Search Service → Storage Blob Data Reader (indexer access)
+- Search Service → Cognitive Services User (embedding/OCR)
 
 ## Routes
 
 | Route | Description |
 |-------|-------------|
+| `/test` | Primary playground — query knowledge bases with runtime controls |
 | `/knowledge` | Manage knowledge bases and data sources |
-| `/playground` | Query knowledge bases with runtime controls |
+| `/playground` | Alternative playground view |
 | `/agents` | Microsoft Foundry Agent Service integration |
+| `/knowledge-sources` | Knowledge source management and quick-create |
+
+## Azure Resources Provisioned
+
+| Resource | Purpose |
+|----------|---------|
+| Azure Container Apps | Hosts the Next.js application |
+| Azure Container Registry | Stores Docker images (remote build) |
+| Azure AI Search (Basic) | Knowledge base indexing and retrieval |
+| Azure AI Services | OpenAI models (embeddings + chat) and cognitive skills |
+| Azure AI Foundry Hub & Project | Agent orchestration |
+| Azure Blob Storage | Document storage for knowledge sources |
+| Log Analytics + App Insights | Monitoring and observability |
 
 ## Resources
 
 - [Foundry IQ Blog](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/foundry-iq-unlocking-ubiquitous-knowledge-for-agents/4470812)
 - [Azure AI Search Docs](https://learn.microsoft.com/azure/search/)
 - [Microsoft Foundry Docs](https://learn.microsoft.com/azure/ai-foundry/)
-- [AGENTS.md](./AGENTS.md) – Detailed agent guidance
+- [AGENTS.md](./AGENTS.md) – AI agent coding guidelines
 
 ## License
 
