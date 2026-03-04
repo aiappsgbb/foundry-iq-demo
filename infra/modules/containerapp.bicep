@@ -42,6 +42,12 @@ param azureResourceGroup string = ''
 @description('Application Insights connection string')
 param applicationInsightsConnectionString string = ''
 
+@description('Resource ID of the User-Assigned Managed Identity')
+param userAssignedIdentityId string = ''
+
+@description('Client ID of the User-Assigned Managed Identity (for DefaultAzureCredential)')
+param userAssignedIdentityClientId string = ''
+
 // =====================================================
 // Container Registry
 // =====================================================
@@ -98,7 +104,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   location: location
   tags: union(tags, { 'azd-service-name': 'web' })
   identity: {
-    type: 'SystemAssigned'
+    type: !empty(userAssignedIdentityId) ? 'SystemAssigned,UserAssigned' : 'SystemAssigned'
+    userAssignedIdentities: !empty(userAssignedIdentityId) ? {
+      '${userAssignedIdentityId}': {}
+    } : null
   }
   properties: {
     managedEnvironmentId: containerAppEnv.id
@@ -146,13 +155,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'NEXT_PUBLIC_FOUNDRY_ENDPOINT', value: foundryProjectEndpoint }
             { name: 'AZURE_SUBSCRIPTION_ID', value: azureSubscriptionId }
             { name: 'AZURE_RESOURCE_GROUP', value: azureResourceGroup }
+            { name: 'AZURE_CLIENT_ID', value: userAssignedIdentityClientId }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsightsConnectionString }
             { name: 'PORT', value: '80' }
           ]
         }
       ]
       scale: {
-        minReplicas: 0
+        minReplicas: 1
         maxReplicas: 3
         rules: [
           {

@@ -1,53 +1,63 @@
 import { NextResponse } from 'next/server'
+import { getFoundryAuthHeaders, getFoundryProjectEndpoint } from '@/lib/foundry-auth'
 
 /**
  * POST /api/agentsv2/responses
  * 
- * Agents v2 Responses API (single-call pattern)
- * Uses bearer token from environment for testing
+ * Foundry Agents v2 Responses API (single-call pattern).
+ * Proxies requests to the Azure AI Foundry Agent Service using
+ * DefaultAzureCredential (Managed Identity in ACA, CLI creds locally).
+ * 
+ * Request body should include:
+ *   - input: string (user message)
+ *   - agent_name: string (name of the agent to use)
+ *   - previous_response_id?: string (for multi-turn conversation)
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const bearerToken = process.env.FOUNDRY_BEARER_TOKEN
 
-    if (!bearerToken) {
+    let projectEndpoint: string
+    try {
+      projectEndpoint = getFoundryProjectEndpoint()
+    } catch {
       return NextResponse.json(
-        { error: 'FOUNDRY_BEARER_TOKEN is not configured' },
+        { error: 'Foundry endpoint not configured. Set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_PROJECT_NAME.' },
         { status: 500 }
       )
     }
 
-    const endpoint = process.env.FOUNDRY_PROJECT_ENDPOINT
-    if (!endpoint) {
-      return NextResponse.json(
-        { error: 'FOUNDRY_PROJECT_ENDPOINT is not configured' },
-        { status: 500 }
-      )
+    const headers = await getFoundryAuthHeaders()
+
+    // Build the Responses API request
+    const { input, agent_name, previous_response_id } = body
+
+    const requestBody: Record<string, unknown> = {
+      input,
+      // Use agent_reference to route to the named agent
+      agent_reference: {
+        name: agent_name || 'foundry-iq-agent',
+        type: 'agent_reference'
+      }
     }
 
-    // Call Agents v2 Responses API
-    const url = `${endpoint}/agents/responses?api-version=2025-05-01`
+    if (previous_response_id) {
+      requestBody.previous_response_id = previous_response_id
+    }
+
+    const url = `${projectEndpoint}/openai/v1/responses`
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${bearerToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+      headers,
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Agents API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-      })
       return NextResponse.json(
         { 
-          error: 'Failed to get response from Agents API',
+          error: 'Failed to get response from Foundry Agent',
           details: errorText,
           status: response.status 
         },
@@ -58,9 +68,9 @@ export async function POST(request: Request) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error calling Agents API:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: message },
       { status: 500 }
     )
   }

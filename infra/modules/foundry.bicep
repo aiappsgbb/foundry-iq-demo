@@ -20,6 +20,9 @@ param searchResourceId string
 @description('Search service endpoint URL')
 param searchEndpoint string = ''
 
+@description('Resource ID of the User-Assigned Managed Identity')
+param userAssignedIdentityId string = ''
+
 @description('Chat model to deploy')
 @allowed([
   'gpt-4o'
@@ -100,7 +103,10 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = 
     name: 'S0'
   }
   identity: {
-    type: 'SystemAssigned'
+    type: !empty(userAssignedIdentityId) ? 'SystemAssigned,UserAssigned' : 'SystemAssigned'
+    userAssignedIdentities: !empty(userAssignedIdentityId) ? {
+      '${userAssignedIdentityId}': {}
+    } : null
   }
   properties: {
     customSubDomainName: aiServicesName
@@ -163,7 +169,10 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-pre
   name: projectName
   location: location
   identity: {
-    type: 'SystemAssigned'
+    type: !empty(userAssignedIdentityId) ? 'SystemAssigned,UserAssigned' : 'SystemAssigned'
+    userAssignedIdentities: !empty(userAssignedIdentityId) ? {
+      '${userAssignedIdentityId}': {}
+    } : null
   }
   properties: {
     description: 'Foundry Project for Knowledge Retrieval Demo'
@@ -184,6 +193,7 @@ resource searchConnection 'Microsoft.CognitiveServices/accounts/connections@2025
     category: 'CognitiveSearch'
     target: !empty(searchEndpoint) ? searchEndpoint : 'https://${last(split(searchResourceId, '/'))}.search.windows.net'
     authType: 'AAD'
+    useWorkspaceManagedIdentity: true
     isSharedToAll: true
     metadata: {
       ApiType: 'Azure'
@@ -210,5 +220,6 @@ output aiServicesId string = aiServices.id
 output aiServicesName string = aiServices.name
 output aiServicesEndpoint string = aiServices.properties.endpoint
 output aiServicesPrincipalId string = aiServices.identity.principalId
+output projectPrincipalId string = aiProject.identity.principalId
 output embeddingDeploymentName string = embeddingDeployment.name
 output chatDeploymentName string = chatDeployment.name

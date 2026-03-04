@@ -86,6 +86,18 @@ var tags = {
   managedBy: 'Bicep'
 }
 
+// =====================================================
+// User-Assigned Managed Identity (shared across all services)
+// =====================================================
+module userIdentity 'modules/user-identity.bicep' = {
+  name: 'deploy-uami'
+  params: {
+    identityName: '${baseName}-${uniqueSuffix}-id'
+    location: location
+    tags: tags
+  }
+}
+
 // Model version and capacity mappings
 var chatModelConfig = {
   'gpt-4o': {
@@ -176,6 +188,7 @@ module foundry 'modules/foundry.bicep' = {
     embeddingModelName: embeddingModelName
     chatCapacity: chatModelConfig[chatModelName].capacity
     embeddingCapacity: embeddingModelConfig[embeddingModelName].capacity
+    userAssignedIdentityId: userIdentity.outputs.identityId
   }
 }
 
@@ -208,15 +221,17 @@ module containerApp 'modules/containerapp.bicep' = {
     azureSubscriptionId: subscription().subscriptionId
     azureResourceGroup: resourceGroup().name
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
+    userAssignedIdentityId: userIdentity.outputs.identityId
+    userAssignedIdentityClientId: userIdentity.outputs.identityClientId
   }
 }
 
 // Deploy RBAC Role Assignments
-// Assigns roles to: Container App identity (app runtime) + Search identity (knowledge source ingestion)
+// Assigns roles to: UAMI (shared identity) + Search system MI (knowledge source ingestion)
 module rbac 'modules/rbac.bicep' = {
   name: 'deploy-rbac'
   params: {
-    appPrincipalId: containerApp.outputs.containerAppPrincipalId
+    uamiPrincipalId: userIdentity.outputs.identityPrincipalId
     searchServicePrincipalId: search.outputs.searchServicePrincipalId
     searchServiceId: search.outputs.searchServiceId
     storageAccountId: storage.outputs.storageAccountId
@@ -308,6 +323,9 @@ output AZURE_FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
 
 // Tenant ID — used by postprovision hooks to authenticate with AzureDeveloperCliCredential
 output AZURE_TENANT_ID string = tenant().tenantId
+
+// UAMI Client ID — used by Container App (DefaultAzureCredential) and postprovision scripts
+output AZURE_CLIENT_ID string = userIdentity.outputs.identityClientId
 
 // Deployed model names — used by postprovision to configure knowledge base/source JSON configs
 output AZURE_CHAT_DEPLOYMENT_NAME string = foundry.outputs.chatDeploymentName

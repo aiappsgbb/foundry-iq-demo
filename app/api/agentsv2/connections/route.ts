@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server'
+import { DefaultAzureCredential } from '@azure/identity'
+
+const MGMT_SCOPE = 'https://management.azure.com/.default'
 
 /**
  * GET /api/agentsv2/connections
  * 
- * Lists Remote Tool connections for the AI Foundry project using Azure Management API
- * Uses bearer token from environment for testing
+ * Lists Remote Tool connections for the AI Foundry project using Azure Management API.
+ * Uses DefaultAzureCredential for authentication.
  */
 export async function GET() {
   try {
     const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID
     const resourceGroup = process.env.AZURE_RESOURCE_GROUP
     const projectName = process.env.FOUNDRY_PROJECT_NAME
-    const bearerToken = process.env.AZURE_MANAGEMENT_BEARER_TOKEN
 
     if (!subscriptionId || !resourceGroup || !projectName) {
       return NextResponse.json(
@@ -20,19 +22,15 @@ export async function GET() {
       )
     }
 
-    if (!bearerToken) {
-      return NextResponse.json(
-        { error: 'AZURE_MANAGEMENT_BEARER_TOKEN is not configured' },
-        { status: 500 }
-      )
-    }
+    const credential = new DefaultAzureCredential()
+    const tokenResponse = await credential.getToken(MGMT_SCOPE)
 
     const url = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.MachineLearningServices/workspaces/${projectName}/connections?api-version=2024-04-01`
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${bearerToken}`,
+        'Authorization': `Bearer ${tokenResponse.token}`,
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
@@ -40,11 +38,6 @@ export async function GET() {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Azure Management API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-      })
       return NextResponse.json(
         { 
           error: 'Failed to fetch connections from Azure Management API',
@@ -58,9 +51,9 @@ export async function GET() {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error fetching connections:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: message },
       { status: 500 }
     )
   }

@@ -420,6 +420,133 @@ def deploy_knowledge_base(
         return False
 
 
+def deploy_foundry_agent(
+    foundry_project_endpoint: str,
+    bearer_token: str,
+    agent_name: str,
+    model: str,
+    instructions: str,
+    mcp_tools: list,
+) -> bool:
+    """
+    Create a Foundry Agent via the REST API (POST /agents?api-version=v1).
+
+    Uses the PromptAgentDefinition with MCP tools for knowledge base retrieval.
+    """
+    url = f"{foundry_project_endpoint}/agents?api-version=v1"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {bearer_token}",
+    }
+    body = {
+        "name": agent_name,
+        "description": "Knowledge retrieval agent using Azure AI Search knowledge bases via MCP",
+        "definition": {
+            "kind": "prompt",
+            "model": model,
+            "instructions": instructions,
+            "tools": mcp_tools,
+        },
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=body, timeout=60)
+        if response.status_code in (200, 201):
+            return True
+        elif response.status_code == 409:
+            # Agent already exists — delete and recreate to update config
+            logger.info(f"    Agent already exists, deleting and recreating...")
+            del_url = f"{foundry_project_endpoint}/agents/{agent_name}?api-version=v1"
+            requests.delete(del_url, headers=headers, timeout=30)
+            response2 = requests.post(url, headers=headers, json=body, timeout=60)
+            if response2.status_code in (200, 201):
+                return True
+            logger.error(f"    Recreate failed: HTTP {response2.status_code}")
+            try:
+                logger.error(f"    {response2.json()}")
+            except Exception:
+                pass
+            return False
+        else:
+            logger.error(f"    HTTP {response.status_code}")
+            try:
+                error_detail = response.json()
+                logger.error(f"    Error: {json.dumps(error_detail, indent=2)}")
+            except json.JSONDecodeError:
+                logger.error(f"    Response: {response.text}")
+            return False
+    except requests.RequestException as e:
+        logger.error(f"    Request failed: {e}")
+        return False
+
+
+def create_project_mcp_connection(
+    credential,
+    subscription_id: str,
+    resource_group: str,
+    ai_services_name: str,
+    project_name: str,
+    connection_name: str,
+    mcp_target_url: str,
+) -> bool:
+    """
+    Create a RemoteTool connection on the Foundry project for MCP auth.
+
+    This uses ProjectManagedIdentity auth type — the project's managed identity
+    authenticates to the Search MCP endpoint. This is required for MCP tools
+    to work with knowledge bases.
+
+    The target URL should be the full MCP endpoint URL, e.g.:
+    https://<search>.search.windows.net/knowledgebases/<kb-name>/mcp
+
+    Reference: https://learn.microsoft.com/azure/foundry/agents/how-to/foundry-iq-connect
+    """
+    mgmt_token = credential.get_token("https://management.azure.com/.default").token
+    project_resource_id = (
+        f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.CognitiveServices/accounts/{ai_services_name}"
+        f"/projects/{project_name}"
+    )
+    url = (
+        f"https://management.azure.com{project_resource_id}"
+        f"/connections/{connection_name}?api-version=2025-10-01-preview"
+    )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {mgmt_token}",
+    }
+    body = {
+        "name": connection_name,
+        "type": "Microsoft.MachineLearningServices/workspaces/connections",
+        "properties": {
+            "authType": "ProjectManagedIdentity",
+            "category": "RemoteTool",
+            "target": mcp_target_url,
+            "isSharedToAll": True,
+            "audience": "https://search.azure.com",
+            "metadata": {
+                "ApiType": "Azure",
+            },
+        },
+    }
+
+    try:
+        response = requests.put(url, headers=headers, json=body, timeout=60)
+        if response.status_code in (200, 201):
+            logger.info(f"    OK connection '{connection_name}'")
+            return True
+        else:
+            logger.warning(f"    WARN connection '{connection_name}': HTTP {response.status_code}")
+            try:
+                logger.warning(f"    {response.json()}")
+            except Exception:
+                logger.warning(f"    {response.text}")
+            return False
+    except requests.RequestException as e:
+        logger.warning(f"    WARN connection '{connection_name}' failed: {e}")
+        return False
+
+
 def main():
     """Main entry point for the post-provision script."""
     logger.info("")
@@ -429,7 +556,7 @@ def main():
     logger.info("")
     
     # Get environment variables from azd provision
-    logger.info("[1/5] Collecting environment variables from azd...")
+    logger.info("[1/6] Collecting environment variables from azd...")
     
     # Required variables
     resource_group = get_env_or_fail("AZURE_RESOURCE_GROUP")
@@ -469,7 +596,7 @@ def main():
     
     # Authenticate using AzureDeveloperCliCredential (matches azd's tenant context)
     logger.info("")
-    logger.info("[2/5] Authenticating with Azure (Entra ID via azd)...")
+    logger.info("[2/6] Authenticating with Azure (Entra ID via azd)...")
     
     tenant_id = os.environ.get("AZURE_TENANT_ID", "")
     
@@ -485,7 +612,7 @@ def main():
     
     # Discover resources if not provided
     logger.info("")
-    logger.info("[3/5] Retrieving Azure resource credentials...")
+    logger.info("[3/6] Retrieving Azure resource credentials...")
     
     try:
         # Get Search endpoint (no admin key needed — we use Bearer tokens)
@@ -565,7 +692,7 @@ def main():
     
     # Deploy Knowledge Sources
     logger.info("")
-    logger.info("[4/5] Deploying Knowledge Sources...")
+    logger.info("[4/6] Deploying Knowledge Sources...")
     
     if not knowledge_sources_dir.exists():
         logger.warning(f"  WARN Knowledge sources directory not found: {knowledge_sources_dir}")
@@ -612,7 +739,7 @@ def main():
     
     # Deploy Knowledge Bases
     logger.info("")
-    logger.info("[5/5] Deploying Knowledge Bases...")
+    logger.info("[5/6] Deploying Knowledge Bases...")
     
     if not knowledge_bases_dir.exists():
         logger.warning(f"  WARN Knowledge bases directory not found: {knowledge_bases_dir}")
@@ -654,6 +781,121 @@ def main():
                 traceback.print_exc()
                 sys.exit(1)
     
+    # Create Foundry Agent
+    logger.info("")
+    logger.info("[6/6] Creating Foundry Agent...")
+
+    foundry_project_name = os.environ.get("foundryProjectName", "")
+    # Build the Foundry project endpoint from the OpenAI/AI Services endpoint.
+    # openai_endpoint looks like https://xxx.cognitiveservices.azure.com
+    # We need https://xxx.services.ai.azure.com/api/projects/{projectName}
+    foundry_project_endpoint = ""
+    if openai_endpoint and foundry_project_name:
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(openai_endpoint)
+            host_prefix = parsed.hostname.split(".")[0]
+            foundry_project_endpoint = (
+                f"https://{host_prefix}.services.ai.azure.com"
+                f"/api/projects/{foundry_project_name}"
+            )
+        except Exception as e:
+            logger.warning(f"  WARN Could not construct Foundry endpoint: {e}")
+
+    if not foundry_project_endpoint:
+        logger.warning("  SKIP Foundry Agent creation skipped (endpoint or project name unavailable)")
+    else:
+        logger.info(f"  Foundry endpoint: {foundry_project_endpoint}")
+
+        # Create RemoteTool connections on the project for each KB (MCP auth)
+        # Each connection targets a specific KB MCP endpoint using ProjectManagedIdentity.
+        logger.info("  Creating project MCP connections...")
+
+        # Build MCP tools for ALL knowledge bases
+        mcp_tools = []
+        if knowledge_bases_dir.exists():
+            _kb_files = sorted(knowledge_bases_dir.glob("*.json"))
+            for kb_file in _kb_files:
+                kb_name = kb_file.stem
+                conn_name = f"mcp-{kb_name}"
+                mcp_url = f"{search_endpoint}/knowledgebases/{kb_name}/mcp?api-version=2025-11-01-preview"
+                create_project_mcp_connection(
+                    credential=credential,
+                    subscription_id=subscription_id,
+                    resource_group=resource_group,
+                    ai_services_name=openai_name,
+                    project_name=foundry_project_name,
+                    connection_name=conn_name,
+                    mcp_target_url=mcp_url,
+                )
+                mcp_tools.append({
+                    "type": "mcp",
+                    "server_label": f"kb-{kb_name}",
+                    "server_url": mcp_url,
+                    "require_approval": "never",
+                    "allowed_tools": ["knowledge_base_retrieve"],
+                    "project_connection_id": conn_name,
+                })
+        if not mcp_tools:
+            # Fallback to a default if no KB files found
+            conn_name = "mcp-manufacturing-knowledge-base"
+            mcp_url = f"{search_endpoint}/knowledgebases/manufacturing-knowledge-base/mcp?api-version=2025-11-01-preview"
+            create_project_mcp_connection(
+                credential=credential,
+                subscription_id=subscription_id,
+                resource_group=resource_group,
+                ai_services_name=openai_name,
+                project_name=foundry_project_name,
+                connection_name=conn_name,
+                mcp_target_url=mcp_url,
+            )
+            mcp_tools.append({
+                "type": "mcp",
+                "server_label": "knowledge-base",
+                "server_url": mcp_url,
+                "require_approval": "never",
+                "allowed_tools": ["knowledge_base_retrieve"],
+                "project_connection_id": conn_name,
+            })
+
+        agent_model = chat_deployment or "gpt-4o-mini"
+        agent_instructions = (
+            "You are a knowledge retrieval assistant powered by Azure AI Search knowledge bases. "
+            "Your role is to answer questions about manufacturing, healthcare, and financial documents "
+            "by using the MCP tools to search and retrieve relevant information. "
+            "You have access to multiple knowledge bases -- use the appropriate one(s) based on the question topic. "
+            "Always use the knowledge_base_retrieve tool to find answers. "
+            "Cite your sources by referencing the document titles and relevant snippets returned by the tool.\n\n"
+            "CRITICAL: When calling knowledge_base_retrieve, the 'knowledgeBaseIntents' parameter MUST be "
+            "an array of plain strings, NOT an array of objects. "
+            "Correct: {\"request\":{\"knowledgeBaseIntents\":[\"query text here\",\"another query\"]}} "
+            "Wrong: {\"request\":{\"knowledgeBaseIntents\":[{\"knowledgeBaseIntents\":\"query text\"}]}}"
+        )
+
+        try:
+            foundry_token = credential.get_token("https://ai.azure.com/.default").token
+        except Exception as e:
+            logger.warning(f"  WARN Could not acquire Foundry token: {e}")
+            foundry_token = None
+
+        if foundry_token:
+            logger.info(f"  Creating agent: foundry-iq-agent (model={agent_model})")
+            for t in mcp_tools:
+                logger.info(f"    MCP tool: {t['server_label']} -> {t['server_url']}")
+            if deploy_foundry_agent(
+                foundry_project_endpoint,
+                foundry_token,
+                "foundry-iq-agent",
+                agent_model,
+                agent_instructions,
+                mcp_tools,
+            ):
+                logger.info("    OK foundry-iq-agent")
+            else:
+                logger.warning("    WARN foundry-iq-agent - deployment failed (non-fatal)")
+        else:
+            logger.warning("  SKIP Foundry Agent creation skipped (could not acquire token)")
+
     logger.info("")
     logger.info("=" * 50)
     logger.info("OK Azure AI Search configuration complete!")
