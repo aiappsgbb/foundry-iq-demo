@@ -73,25 +73,25 @@
       "agentIds": ["manufacturing-knowledge-base"],
       "starters": [
         {
-          "id": "torque-spec",
-          "label": "Engine Assembly Torque",
-          "prompt": "What torque value is specified for assembly part 123 on the ZX-200 engine?",
+          "id": "lycoming-ad",
+          "label": "Lycoming Connecting Rod AD",
+          "prompt": "What airworthiness directive was issued for Lycoming engine connecting rod bushings, and what inspections are required?",
           "complexity": "Simple",
-          "tags": ["specifications", "assembly"]
-        },
-        {
-          "id": "airworthiness-directives",
-          "label": "EMB-120 Airworthiness Directives",
-          "prompt": "List all Airworthiness Directives issued since 2020 for Embraer EMB-120 and summarize key compliance actions.",
-          "complexity": "Moderate",
           "tags": ["directives", "compliance", "aviation"]
         },
         {
-          "id": "maintenance-schedule",
-          "label": "Maintenance Schedule Optimization",
-          "prompt": "Based on the EMB-120 maintenance requirements and current Airworthiness Directives, what would be an optimal maintenance schedule to minimize aircraft downtime?",
+          "id": "ntsb-investigations",
+          "label": "Aviation Incident Investigations",
+          "prompt": "Summarize any NTSB accident investigation reports related to engine failures or mechanical issues.",
+          "complexity": "Moderate",
+          "tags": ["investigations", "safety", "aviation"]
+        },
+        {
+          "id": "maintenance-compliance",
+          "label": "Compliance & Maintenance",
+          "prompt": "Based on the airworthiness directives and investigation reports, what are the most critical maintenance actions operators should prioritize to ensure compliance and safety?",
           "complexity": "Advanced",
-          "tags": ["multi-source", "maintenance", "optimization"]
+          "tags": ["multi-source", "maintenance", "compliance"]
         }
       ]
     },
