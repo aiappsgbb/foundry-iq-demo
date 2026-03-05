@@ -205,14 +205,13 @@ module foundry 'modules/foundry.bicep' = if (!useExistingFoundry) {
 }
 
 // Reference existing Foundry instance (when reusing centralized quota)
-// The existing AI Services account must already have model deployments configured
+// CONSTRAINT: The existing AI Services account must be in the SAME resource group.
+// It must already have chat + embedding model deployments configured.
 resource existingAiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (useExistingFoundry) {
   name: last(split(existingFoundryId, '/'))!
-  scope: resourceGroup()
 }
 
-// When using an existing Foundry in a different resource group, we need
-// a lightweight project in the existing account for MCP connections
+// Create a lightweight project + search connection on the existing AI Services account
 module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingFoundry) {
   name: 'deploy-foundry-project'
   params: {
