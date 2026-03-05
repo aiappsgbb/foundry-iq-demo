@@ -45,6 +45,23 @@ That's it. `azd up` handles provisioning, search object configuration, sample da
 
 See [AZD Deployment Guide](./docs/AZD_DEPLOYMENT.md) for detailed instructions.
 
+### Reuse an Existing Foundry Instance (Optional)
+
+If you already have an Azure AI Services (Foundry) account with model deployments and want to centralize quota, you can skip provisioning a new one:
+
+```bash
+# Point to your existing AI Services account (must be in the same resource group)
+azd env set AZURE_EXISTING_FOUNDRY_ID /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account-name>
+
+# Specify your existing model deployment names
+azd env set AZURE_EXISTING_CHAT_DEPLOYMENT gpt-4o
+azd env set AZURE_EXISTING_EMBEDDING_DEPLOYMENT text-embedding-3-large
+
+azd up
+```
+
+When these are set, Bicep skips AI Services and model deployment creation, creates only a Foundry Project + Search connection on the existing account, and applies RBAC so the UAMI can access it. Leave them empty (default) to provision a new Foundry instance.
+
 ## Quick Start (Local Development)
 
 ```bash
@@ -125,8 +142,8 @@ When deployed via `azd`, all environment variables are configured automatically 
 | Azure Container Apps | Hosts the Next.js application |
 | Azure Container Registry | Stores Docker images (remote build) |
 | Azure AI Search (Basic) | Knowledge base indexing and retrieval |
-| Azure AI Services | OpenAI models (embeddings + chat) and cognitive skills |
-| Azure AI Foundry Hub & Project | Agent orchestration |
+| Azure AI Services | OpenAI models (embeddings + chat) — or reuse existing |
+| Azure AI Foundry Hub & Project | Agent orchestration (project created on existing or new account) |
 | Azure Blob Storage | Document storage for knowledge sources |
 | Log Analytics + App Insights | Monitoring and observability |
 
