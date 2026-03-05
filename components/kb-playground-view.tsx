@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { VoiceInput } from '@/components/ui/voice-input'
 import { InlineCitationsText, SourcesCountButton } from '@/components/inline-citations'
+import { MarkdownWithCitations } from '@/components/markdown-with-citations'
 import { SourcesPanel } from '@/components/sources-panel'
 import { SourceKindIcon } from '@/components/source-kind-icon'
 import { MCPToolCallDisplay } from '@/components/mcp-tool-call-display'
@@ -1062,17 +1063,16 @@ function MessageBubble({ message, agent, showCostEstimates, onOpenSources }: {
                 }}
               />
             ) : (
-              /* Standard text rendering with inline citations */
+              /* Standard text rendering with markdown + inline citations */
               message.content.map((content, index) => (
-                <p key={index} className="whitespace-pre-wrap break-words">
-                  <InlineCitationsText
-                    text={content.text}
-                    references={message.references as any}
-                    activity={message.activity as any}
-                    messageId={message.id}
-                    onActivate={() => onOpenSources?.(regularRefs, message.activity || [], isUser ? undefined : message.content[0]?.text)}
-                  />
-                </p>
+                <MarkdownWithCitations
+                  key={index}
+                  text={content.text}
+                  references={message.references as any}
+                  activity={message.activity as any}
+                  messageId={message.id}
+                  onActivate={() => onOpenSources?.(regularRefs, message.activity || [], isUser ? undefined : message.content[0]?.text)}
+                />
               ))
             )}
           </div>

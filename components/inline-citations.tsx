@@ -4,6 +4,7 @@ import React from 'react'
 import { KnowledgeBaseReference, KnowledgeBaseActivityRecord } from '@/types/knowledge-retrieval'
 import { CitationHoverCard, getShortDomainLabel, getDocumentName } from '@/components/citation-hover-card'
 import { SourceKindIcon } from '@/components/source-kind-icon'
+import { MarkdownText } from '@/components/markdown-text'
 import { cn } from '@/lib/utils'
 
 /**

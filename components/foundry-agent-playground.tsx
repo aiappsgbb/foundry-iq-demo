@@ -13,6 +13,7 @@ import {
 } from '@fluentui/react-icons'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { MarkdownText } from '@/components/markdown-text'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -558,14 +559,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
       {/* Content */}
       <div className={cn('max-w-[75%] space-y-2', isUser && 'items-end')}>
-        <div className={cn(
-          'rounded-xl px-4 py-2.5 text-sm',
-          isUser
-            ? 'bg-blue-500 text-white rounded-tr-sm'
-            : 'bg-bg-subtle text-fg-default rounded-tl-sm'
-        )}>
-          <p className="whitespace-pre-wrap">{message.content}</p>
-        </div>
+        {isUser ? (
+          <div className="rounded-xl px-4 py-2.5 text-sm bg-blue-500 text-white rounded-tr-sm">
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          </div>
+        ) : (
+          <div className="rounded-xl px-4 py-2.5 text-sm bg-bg-subtle text-fg-default rounded-tl-sm">
+            <MarkdownText content={message.content} />
+          </div>
+        )}
 
         {/* Tool calls indicator */}
         {message.toolCalls && message.toolCalls.length > 0 && (
