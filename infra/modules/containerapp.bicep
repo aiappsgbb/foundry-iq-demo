@@ -12,9 +12,6 @@ param tags object = {}
 @description('Log Analytics workspace ID for Container App Environment')
 param logAnalyticsWorkspaceId string
 
-@description('Whether the container app already exists (azd sets SERVICE_WEB_RESOURCE_EXISTS)')
-param exists bool
-
 // =====================================================
 // Environment Variables
 // =====================================================
@@ -62,19 +59,6 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
   properties: {
     adminUserEnabled: true
-  }
-}
-
-// =====================================================
-// Fetch latest image (azd convention for idempotent deploys)
-// On first deploy: no image exists yet, falls back to placeholder
-// On subsequent deploys: uses the existing image to avoid downtime
-// =====================================================
-module fetchLatestImage './fetch-container-image.bicep' = {
-  name: '${baseName}-fetch-image'
-  params: {
-    exists: exists
-    name: '${baseName}-app'
   }
 }
 
@@ -136,8 +120,8 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [
         {
-          // Use existing image if app already exists, otherwise placeholder
-          image: fetchLatestImage.outputs.?containers[?0].?image ?? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+          // Placeholder image — azd deploy replaces this with the real app image
+          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           name: 'web'
           resources: {
             cpu: json('0.5')

@@ -16,9 +16,6 @@
     },
     "embeddingModelName": {
       "value": "${AZURE_EMBEDDING_MODEL=text-embedding-3-large}"
-    },
-    "webExists": {
-      "value": "${SERVICE_WEB_RESOURCE_EXISTS=false}"
     }
   }
 }

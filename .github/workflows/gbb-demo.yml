@@ -71,44 +71,12 @@ jobs:
                 --subscription "$AZURE_SUBSCRIPTION_ID"
             fi
 
-      # Check if the Container App already exists in the resource group.
-      # This prevents ResourceNotFound errors when the fetchLatestImage module
-      # tries to reference a previously-deleted Container App.
-      - name: Detect Container App existence
-        id: check-app
-        uses: azure/cli@v2
-        with:
-          azcliversion: latest
-          inlineScript: |
-            APP_NAME=$(az containerapp list \
-              -g "$AZURE_RESOURCE_GROUP" \
-              --subscription "$AZURE_SUBSCRIPTION_ID" \
-              --query "[?tags.\"azd-service-name\"=='web'].name | [0]" \
-              -o tsv 2>/dev/null || echo "")
-            if [ -n "$APP_NAME" ]; then
-              echo "Container App found: $APP_NAME"
-              echo "app-exists=true" >> $GITHUB_OUTPUT
-            else
-              echo "No Container App found for service 'web'"
-              echo "app-exists=false" >> $GITHUB_OUTPUT
-            fi
-
-      # Initialize the azd environment from AZD_INITIAL_ENVIRONMENT_CONFIG,
-      # then override SERVICE_WEB_RESOURCE_EXISTS based on actual Azure state.
-      # This is critical because AZD_INITIAL_ENVIRONMENT_CONFIG may contain
-      # a stale 'true' value from a previous deployment whose resources were deleted.
-      - name: Initialize azd environment
-        run: |
-          azd env new "$AZURE_ENV_NAME" --no-prompt 2>/dev/null || true
-          azd env set SERVICE_WEB_RESOURCE_EXISTS "${{ steps.check-app.outputs.app-exists }}"
-          echo "SERVICE_WEB_RESOURCE_EXISTS set to: ${{ steps.check-app.outputs.app-exists }}"
-        env:
-          AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-
       # azd provision deploys Bicep (ACA, ACR, Search, Foundry, Storage, RBAC)
       # and triggers the postprovision hook which configures search objects + uploads sample data
       - name: Provision Infrastructure
         run: azd provision --no-prompt
+        env:
+          AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
 
       # azd deploy builds the Docker image remotely in ACR and updates the Container App
       - name: Deploy Application

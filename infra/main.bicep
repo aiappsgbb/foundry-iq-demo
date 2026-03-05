@@ -38,9 +38,6 @@ param chatModelName string = 'gpt-4o-mini'
 ])
 param embeddingModelName string = 'text-embedding-3-large'
 
-@description('Whether the web container app already exists (set by azd via SERVICE_WEB_RESOURCE_EXISTS)')
-param webExists bool = false
-
 // SKU selections based on environment
 var skuMap = {
   dev: {
@@ -211,7 +208,6 @@ module containerApp 'modules/containerapp.bicep' = {
     location: location
     tags: tags
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
-    exists: webExists
     // Environment variables
     azureSearchEndpoint: search.outputs.searchEndpoint
     azureSearchApiVersion: '2025-11-01-preview'
