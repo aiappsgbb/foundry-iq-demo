@@ -19,6 +19,15 @@
     },
     "webImageName": {
       "value": "${SERVICE_WEB_IMAGE_NAME=}"
+    },
+    "existingFoundryId": {
+      "value": "${AZURE_EXISTING_FOUNDRY_ID=}"
+    },
+    "existingChatDeploymentName": {
+      "value": "${AZURE_EXISTING_CHAT_DEPLOYMENT=}"
+    },
+    "existingEmbeddingDeploymentName": {
+      "value": "${AZURE_EXISTING_EMBEDDING_DEPLOYMENT=}"
     }
   }
 }

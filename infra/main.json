@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.30.3.12046",
-      "templateHash": "17760324781773321812"
+      "templateHash": "10120210597021063943"
     }
   },
   "parameters": {
@@ -37,34 +37,6 @@
         "description": "Environment name (dev, staging, prod)"
       }
     },
-    "repositoryUrl": {
-      "type": "string",
-      "defaultValue": "https://github.com/farzad528/azure-ai-search-knowledge-retrieval-demo",
-      "metadata": {
-        "description": "GitHub repository URL for Static Web App"
-      }
-    },
-    "branch": {
-      "type": "string",
-      "defaultValue": "main",
-      "metadata": {
-        "description": "GitHub repository branch"
-      }
-    },
-    "repositoryToken": {
-      "type": "securestring",
-      "defaultValue": "",
-      "metadata": {
-        "description": "GitHub repository token for Static Web App deployment"
-      }
-    },
-    "deploySampleData": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Deploy sample data (hotels index and Responsible AI PDF)"
-      }
-    },
     "chatModelName": {
       "type": "string",
       "defaultValue": "gpt-4o-mini",
@@ -84,7 +56,7 @@
     },
     "embeddingModelName": {
       "type": "string",
-      "defaultValue": "text-embedding-3-small",
+      "defaultValue": "text-embedding-3-large",
       "allowedValues": [
         "text-embedding-ada-002",
         "text-embedding-3-small",
@@ -93,24 +65,49 @@
       "metadata": {
         "description": "Embedding model to deploy"
       }
+    },
+    "webImageName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Container image name (azd sets SERVICE_WEB_IMAGE_NAME after each deploy)"
+      }
+    },
+    "existingFoundryId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Use an existing Foundry (AI Services) instance instead of creating a new one. Set to resource ID or leave empty to provision new."
+      }
+    },
+    "existingChatDeploymentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the existing Foundry chat model deployment (required when using existingFoundryId)"
+      }
+    },
+    "existingEmbeddingDeploymentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the existing Foundry embedding model deployment (required when using existingFoundryId)"
+      }
     }
   },
   "variables": {
     "skuMap": {
       "dev": {
         "search": "basic",
-        "storage": "Standard_LRS",
-        "staticWebApp": "Standard"
+        "storage": "Standard_LRS"
       },
       "staging": {
         "search": "standard",
-        "storage": "Standard_LRS",
-        "staticWebApp": "Standard"
+        "storage": "Standard_LRS"
       },
       "prod": {
         "search": "standard",
-        "storage": "Standard_GRS",
-        "staticWebApp": "Standard"
+        "storage": "Standard_GRS"
       }
     },
     "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
@@ -119,7 +116,7 @@
       "openai": "[format('{0}-openai-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
       "storage": "[toLower(format('st{0}{1}', parameters('baseName'), take(variables('uniqueSuffix'), sub(sub(24, 2), length(parameters('baseName'))))))]",
       "project": "[format('{0}-prj-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
-      "staticWebApp": "[format('{0}-web-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
+      "containerApp": "[format('{0}-{1}', parameters('baseName'), variables('uniqueSuffix'))]",
       "logAnalytics": "[format('{0}-{1}-law', parameters('baseName'), variables('uniqueSuffix'))]",
       "appInsights": "[format('{0}-{1}-appi', parameters('baseName'), variables('uniqueSuffix'))]"
     },
@@ -128,6 +125,7 @@
       "solution": "Azure AI Search Knowledge Retrieval",
       "managedBy": "Bicep"
     },
+    "useExistingFoundry": "[not(empty(parameters('existingFoundryId')))]",
     "chatModelConfig": {
       "gpt-4o": {
         "version": "2024-08-06",
@@ -181,6 +179,88 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
+      "name": "deploy-uami",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "identityName": {
+            "value": "[format('{0}-{1}-id', parameters('baseName'), variables('uniqueSuffix'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.30.3.12046",
+              "templateHash": "530017709774196948"
+            }
+          },
+          "parameters": {
+            "identityName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the managed identity"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for the identity"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags for the identity"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[parameters('identityName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            }
+          ],
+          "outputs": {
+            "identityId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName'))]"
+            },
+            "identityPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2023-01-31').principalId]"
+            },
+            "identityClientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2023-01-31').clientId]"
+            },
+            "identityName": {
+              "type": "string",
+              "value": "[parameters('identityName')]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
       "name": "deploy-search",
       "properties": {
         "expressionEvaluationOptions": {
@@ -208,7 +288,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.30.3.12046",
-              "templateHash": "10486665474867619876"
+              "templateHash": "11125087355712431973"
             }
           },
           "parameters": {
@@ -258,6 +338,9 @@
               "sku": {
                 "name": "[parameters('sku')]"
               },
+              "identity": {
+                "type": "SystemAssigned"
+              },
               "properties": {
                 "hostingMode": "default",
                 "partitionCount": 1,
@@ -285,6 +368,10 @@
             "searchEndpoint": {
               "type": "string",
               "value": "[format('https://{0}.search.windows.net', parameters('searchServiceName'))]"
+            },
+            "searchServicePrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), '2023-11-01', 'full').identity.principalId]"
             }
           }
         }
@@ -323,7 +410,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.30.3.12046",
-              "templateHash": "6053241989055689587"
+              "templateHash": "8880780735390560276"
             }
           },
           "parameters": {
@@ -392,6 +479,11 @@
                 "allowBlobPublicAccess": false,
                 "minimumTlsVersion": "TLS1_2",
                 "supportsHttpsTrafficOnly": true,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "bypass": "AzureServices",
+                  "defaultAction": "Allow"
+                },
                 "encryption": {
                   "services": {
                     "blob": {
@@ -468,6 +560,7 @@
       }
     },
     {
+      "condition": "[not(variables('useExistingFoundry'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
       "name": "deploy-foundry",
@@ -506,6 +599,9 @@
           },
           "embeddingCapacity": {
             "value": "[variables('embeddingModelConfig')[parameters('embeddingModelName')].capacity]"
+          },
+          "userAssignedIdentityId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-uami'), '2022-09-01').outputs.identityId.value]"
           }
         },
         "template": {
@@ -515,7 +611,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.30.3.12046",
-              "templateHash": "12999866054075242034"
+              "templateHash": "10629348789654159170"
             }
           },
           "parameters": {
@@ -556,6 +652,13 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Search service endpoint URL"
+              }
+            },
+            "userAssignedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the User-Assigned Managed Identity"
               }
             },
             "chatModelName": {
@@ -653,7 +756,8 @@
                 "name": "S0"
               },
               "identity": {
-                "type": "SystemAssigned"
+                "type": "[if(not(empty(parameters('userAssignedIdentityId'))), 'SystemAssigned,UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('userAssignedIdentityId'))), createObject(format('{0}', parameters('userAssignedIdentityId')), createObject()), null())]"
               },
               "properties": {
                 "customSubDomainName": "[parameters('aiServicesName')]",
@@ -697,7 +801,8 @@
                   "format": "OpenAI",
                   "name": "[parameters('chatModelName')]",
                   "version": "[variables('chatModelConfig')[parameters('chatModelName')].version]"
-                }
+                },
+                "raiPolicyName": "Microsoft.Nil"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName'))]",
@@ -710,7 +815,8 @@
               "name": "[format('{0}/{1}', parameters('aiServicesName'), parameters('projectName'))]",
               "location": "[parameters('location')]",
               "identity": {
-                "type": "SystemAssigned"
+                "type": "[if(not(empty(parameters('userAssignedIdentityId'))), 'SystemAssigned,UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('userAssignedIdentityId'))), createObject(format('{0}', parameters('userAssignedIdentityId')), createObject()), null())]"
               },
               "properties": {
                 "description": "Foundry Project for Knowledge Retrieval Demo",
@@ -728,6 +834,7 @@
                 "category": "CognitiveSearch",
                 "target": "[if(not(empty(parameters('searchEndpoint'))), parameters('searchEndpoint'), format('https://{0}.search.windows.net', last(split(parameters('searchResourceId'), '/'))))]",
                 "authType": "AAD",
+                "useWorkspaceManagedIdentity": true,
                 "isSharedToAll": true,
                 "metadata": {
                   "ApiType": "Azure",
@@ -770,6 +877,10 @@
               "type": "string",
               "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName')), '2025-04-01-preview', 'full').identity.principalId]"
             },
+            "projectPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesName'), parameters('projectName')), '2025-04-01-preview', 'full').identity.principalId]"
+            },
             "embeddingDeploymentName": {
               "type": "string",
               "value": "[parameters('embeddingModelName')]"
@@ -782,7 +893,165 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]"
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-uami')]"
+      ]
+    },
+    {
+      "condition": "[variables('useExistingFoundry')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-foundry-project",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "aiServicesName": {
+            "value": "[last(split(parameters('existingFoundryId'), '/'))]"
+          },
+          "projectName": {
+            "value": "[variables('resourceNames').project]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "searchResourceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2022-09-01').outputs.searchServiceId.value]"
+          },
+          "searchEndpoint": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2022-09-01').outputs.searchEndpoint.value]"
+          },
+          "userAssignedIdentityId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-uami'), '2022-09-01').outputs.identityId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.30.3.12046",
+              "templateHash": "13731435391059298693"
+            }
+          },
+          "parameters": {
+            "aiServicesName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing AI Services account"
+              }
+            },
+            "projectName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Foundry project to create"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for the project"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags"
+              }
+            },
+            "searchResourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Search service resource ID to connect"
+              }
+            },
+            "searchEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Search service endpoint URL"
+              }
+            },
+            "userAssignedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the User-Assigned Managed Identity"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.CognitiveServices/accounts/projects",
+              "apiVersion": "2025-04-01-preview",
+              "name": "[format('{0}/{1}', parameters('aiServicesName'), parameters('projectName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "[if(not(empty(parameters('userAssignedIdentityId'))), 'SystemAssigned,UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('userAssignedIdentityId'))), createObject(format('{0}', parameters('userAssignedIdentityId')), createObject()), null())]"
+              },
+              "properties": {
+                "description": "Foundry Project for Knowledge Retrieval Demo",
+                "displayName": "[parameters('projectName')]"
+              }
+            },
+            {
+              "type": "Microsoft.CognitiveServices/accounts/connections",
+              "apiVersion": "2025-04-01-preview",
+              "name": "[format('{0}/{1}', parameters('aiServicesName'), 'search-connection')]",
+              "properties": {
+                "category": "CognitiveSearch",
+                "target": "[if(not(empty(parameters('searchEndpoint'))), parameters('searchEndpoint'), format('https://{0}.search.windows.net', last(split(parameters('searchResourceId'), '/'))))]",
+                "authType": "AAD",
+                "useWorkspaceManagedIdentity": true,
+                "isSharedToAll": true,
+                "metadata": {
+                  "ApiType": "Azure",
+                  "ResourceId": "[parameters('searchResourceId')]",
+                  "location": "[parameters('location')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesName'), parameters('projectName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "projectId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiServicesName'), parameters('projectName'))]"
+            },
+            "projectName": {
+              "type": "string",
+              "value": "[parameters('projectName')]"
+            },
+            "projectEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName')), '2025-04-01-preview').endpoint]"
+            },
+            "aiServicesId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName'))]"
+            },
+            "aiServicesName": {
+              "type": "string",
+              "value": "[parameters('aiServicesName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-uami')]"
       ]
     },
     {
@@ -915,60 +1184,42 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "deploy-staticwebapp",
+      "name": "deploy-containerapp",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
         },
         "mode": "Incremental",
         "parameters": {
-          "staticWebAppName": {
-            "value": "[variables('resourceNames').staticWebApp]"
+          "baseName": {
+            "value": "[variables('resourceNames').containerApp]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
-          "sku": {
-            "value": "[variables('skuMap')[parameters('environment')].staticWebApp]"
-          },
           "tags": {
             "value": "[variables('tags')]"
           },
-          "repositoryUrl": {
-            "value": "[parameters('repositoryUrl')]"
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2022-09-01').outputs.logAnalyticsWorkspaceId.value]"
           },
-          "branch": {
-            "value": "[parameters('branch')]"
-          },
-          "repositoryToken": {
-            "value": "[parameters('repositoryToken')]"
-          },
-          "serviceName": {
-            "value": "web"
+          "imageName": {
+            "value": "[parameters('webImageName')]"
           },
           "azureSearchEndpoint": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2022-09-01').outputs.searchEndpoint.value]"
-          },
-          "azureSearchApiKey": {
-            "value": ""
           },
           "azureSearchApiVersion": {
             "value": "2025-11-01-preview"
           },
           "azureOpenAIEndpoint": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value]"
-          },
-          "azureOpenAIApiKey": {
-            "value": ""
+            "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesEndpoint]"
           },
           "foundryProjectEndpoint": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value]"
-          },
-          "foundryApiKey": {
-            "value": ""
+            "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).projectEndpoint]"
           },
           "foundryProjectName": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value]"
+            "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).projectName]"
           },
           "azureSubscriptionId": {
             "value": "[subscription().subscriptionId]"
@@ -978,6 +1229,12 @@
           },
           "applicationInsightsConnectionString": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2022-09-01').outputs.applicationInsightsConnectionString.value]"
+          },
+          "userAssignedIdentityId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-uami'), '2022-09-01').outputs.identityId.value]"
+          },
+          "userAssignedIdentityClientId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-uami'), '2022-09-01').outputs.identityClientId.value]"
           }
         },
         "template": {
@@ -987,80 +1244,41 @@
             "_generator": {
               "name": "bicep",
               "version": "0.30.3.12046",
-              "templateHash": "7682591045540501531"
+              "templateHash": "1662553919722254623"
             }
           },
           "parameters": {
-            "staticWebAppName": {
+            "baseName": {
               "type": "string",
               "metadata": {
-                "description": "Name of the static web app"
+                "description": "Name prefix for container app resources"
               }
             },
             "location": {
               "type": "string",
               "defaultValue": "[resourceGroup().location]",
               "metadata": {
-                "description": "Location for the static web app"
-              }
-            },
-            "sku": {
-              "type": "string",
-              "defaultValue": "Standard",
-              "allowedValues": [
-                "Free",
-                "Standard"
-              ],
-              "metadata": {
-                "description": "SKU for the static web app"
+                "description": "Location for resources"
               }
             },
             "tags": {
               "type": "object",
               "defaultValue": {},
               "metadata": {
-                "description": "Tags for the static web app"
+                "description": "Tags for resources"
               }
             },
-            "serviceName": {
+            "logAnalyticsWorkspaceId": {
               "type": "string",
-              "defaultValue": "web",
               "metadata": {
-                "description": "Azure Developer CLI service name for deployment targeting"
+                "description": "Log Analytics workspace ID for Container App Environment"
               }
             },
-            "repositoryUrl": {
+            "imageName": {
               "type": "string",
               "defaultValue": "",
               "metadata": {
-                "description": "Repository URL"
-              }
-            },
-            "branch": {
-              "type": "string",
-              "defaultValue": "main",
-              "metadata": {
-                "description": "Branch name"
-              }
-            },
-            "repositoryToken": {
-              "type": "securestring",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Repository token (optional)"
-              }
-            },
-            "buildProperties": {
-              "type": "object",
-              "defaultValue": {
-                "appLocation": "/",
-                "apiLocation": "",
-                "outputLocation": "",
-                "appBuildCommand": "npm run build",
-                "apiBuildCommand": ""
-              },
-              "metadata": {
-                "description": "Build properties"
+                "description": "Container image name from last azd deploy (empty on first deploy)"
               }
             },
             "azureSearchEndpoint": {
@@ -1068,13 +1286,6 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Azure AI Search endpoint URL"
-              }
-            },
-            "azureSearchApiKey": {
-              "type": "securestring",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Azure AI Search API key"
               }
             },
             "azureSearchApiVersion": {
@@ -1088,14 +1299,7 @@
               "type": "string",
               "defaultValue": "",
               "metadata": {
-                "description": "Azure OpenAI endpoint URL (e.g., https://{name}.openai.azure.com)"
-              }
-            },
-            "azureOpenAIApiKey": {
-              "type": "securestring",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Azure OpenAI API key"
+                "description": "Azure OpenAI endpoint URL"
               }
             },
             "foundryProjectEndpoint": {
@@ -1103,13 +1307,6 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Foundry Project endpoint URL"
-              }
-            },
-            "foundryApiKey": {
-              "type": "securestring",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Foundry API key (for Azure OpenAI access) - DEPRECATED: use azureOpenAIApiKey"
               }
             },
             "foundryProjectName": {
@@ -1139,83 +1336,214 @@
               "metadata": {
                 "description": "Application Insights connection string"
               }
+            },
+            "userAssignedIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the User-Assigned Managed Identity"
+              }
+            },
+            "userAssignedIdentityClientId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Client ID of the User-Assigned Managed Identity (for DefaultAzureCredential)"
+              }
             }
+          },
+          "variables": {
+            "acrName": "[replace(format('cr{0}', parameters('baseName')), '-', '')]"
           },
           "resources": [
             {
-              "type": "Microsoft.Web/staticSites",
-              "apiVersion": "2023-01-01",
-              "name": "[parameters('staticWebAppName')]",
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[variables('acrName')]",
               "location": "[parameters('location')]",
-              "tags": "[union(parameters('tags'), createObject('azd-service-name', parameters('serviceName')))]",
+              "tags": "[parameters('tags')]",
               "sku": {
-                "name": "[parameters('sku')]",
-                "tier": "[parameters('sku')]"
-              },
-              "identity": {
-                "type": "SystemAssigned"
+                "name": "Basic"
               },
               "properties": {
-                "repositoryUrl": "[parameters('repositoryUrl')]",
-                "branch": "[parameters('branch')]",
-                "repositoryToken": "[parameters('repositoryToken')]",
-                "buildProperties": "[parameters('buildProperties')]",
-                "provider": "GitHub",
-                "stagingEnvironmentPolicy": "Enabled",
-                "allowConfigFileUpdates": true,
-                "enterpriseGradeCdnStatus": "Disabled"
+                "adminUserEnabled": true
               }
             },
             {
-              "type": "Microsoft.Web/staticSites/config",
-              "apiVersion": "2023-01-01",
-              "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'appsettings')]",
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2024-03-01",
+              "name": "[format('{0}-cae', parameters('baseName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
               "properties": {
-                "AZURE_SEARCH_ENDPOINT": "[parameters('azureSearchEndpoint')]",
-                "AZURE_SEARCH_API_KEY": "[parameters('azureSearchApiKey')]",
-                "AZURE_SEARCH_API_VERSION": "[parameters('azureSearchApiVersion')]",
-                "NEXT_PUBLIC_SEARCH_ENDPOINT": "[parameters('azureSearchEndpoint')]",
-                "NEXT_PUBLIC_AZURE_SEARCH_API_VERSION": "[parameters('azureSearchApiVersion')]",
-                "AZURE_OPENAI_ENDPOINT": "[parameters('azureOpenAIEndpoint')]",
-                "AZURE_OPENAI_API_KEY": "[if(not(empty(parameters('azureOpenAIApiKey'))), parameters('azureOpenAIApiKey'), parameters('foundryApiKey'))]",
-                "NEXT_PUBLIC_AZURE_OPENAI_ENDPOINT": "[parameters('azureOpenAIEndpoint')]",
-                "FOUNDRY_PROJECT_ENDPOINT": "[parameters('foundryProjectEndpoint')]",
-                "FOUNDRY_API_KEY": "[if(not(empty(parameters('azureOpenAIApiKey'))), parameters('azureOpenAIApiKey'), parameters('foundryApiKey'))]",
-                "FOUNDRY_PROJECT_NAME": "[parameters('foundryProjectName')]",
-                "NEXT_PUBLIC_FOUNDRY_ENDPOINT": "[parameters('foundryProjectEndpoint')]",
-                "AZURE_SUBSCRIPTION_ID": "[parameters('azureSubscriptionId')]",
-                "AZURE_RESOURCE_GROUP": "[parameters('azureResourceGroup')]",
-                "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('applicationInsightsConnectionString')]"
+                "appLogsConfiguration": {
+                  "destination": "log-analytics",
+                  "logAnalyticsConfiguration": {
+                    "customerId": "[reference(parameters('logAnalyticsWorkspaceId'), '2022-10-01').customerId]",
+                    "sharedKey": "[listKeys(parameters('logAnalyticsWorkspaceId'), '2022-10-01').primarySharedKey]"
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[format('{0}-app', parameters('baseName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[union(parameters('tags'), createObject('azd-service-name', 'web'))]",
+              "identity": {
+                "type": "[if(not(empty(parameters('userAssignedIdentityId'))), 'SystemAssigned,UserAssigned', 'SystemAssigned')]",
+                "userAssignedIdentities": "[if(not(empty(parameters('userAssignedIdentityId'))), createObject(format('{0}', parameters('userAssignedIdentityId')), createObject()), null())]"
+              },
+              "properties": {
+                "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('baseName')))]",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": {
+                    "external": true,
+                    "targetPort": 80,
+                    "transport": "auto",
+                    "allowInsecure": false
+                  },
+                  "registries": [
+                    {
+                      "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]",
+                      "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+                      "passwordSecretRef": "acr-password"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "acr-password",
+                      "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "image": "[if(not(empty(parameters('imageName'))), parameters('imageName'), 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest')]",
+                      "name": "web",
+                      "resources": {
+                        "cpu": "[json('0.5')]",
+                        "memory": "1Gi"
+                      },
+                      "env": [
+                        {
+                          "name": "AZURE_SEARCH_ENDPOINT",
+                          "value": "[parameters('azureSearchEndpoint')]"
+                        },
+                        {
+                          "name": "AZURE_SEARCH_API_VERSION",
+                          "value": "[parameters('azureSearchApiVersion')]"
+                        },
+                        {
+                          "name": "NEXT_PUBLIC_SEARCH_ENDPOINT",
+                          "value": "[parameters('azureSearchEndpoint')]"
+                        },
+                        {
+                          "name": "NEXT_PUBLIC_AZURE_SEARCH_API_VERSION",
+                          "value": "[parameters('azureSearchApiVersion')]"
+                        },
+                        {
+                          "name": "AZURE_OPENAI_ENDPOINT",
+                          "value": "[parameters('azureOpenAIEndpoint')]"
+                        },
+                        {
+                          "name": "NEXT_PUBLIC_AZURE_OPENAI_ENDPOINT",
+                          "value": "[parameters('azureOpenAIEndpoint')]"
+                        },
+                        {
+                          "name": "FOUNDRY_PROJECT_ENDPOINT",
+                          "value": "[parameters('foundryProjectEndpoint')]"
+                        },
+                        {
+                          "name": "FOUNDRY_PROJECT_NAME",
+                          "value": "[parameters('foundryProjectName')]"
+                        },
+                        {
+                          "name": "NEXT_PUBLIC_FOUNDRY_ENDPOINT",
+                          "value": "[parameters('foundryProjectEndpoint')]"
+                        },
+                        {
+                          "name": "AZURE_SUBSCRIPTION_ID",
+                          "value": "[parameters('azureSubscriptionId')]"
+                        },
+                        {
+                          "name": "AZURE_RESOURCE_GROUP",
+                          "value": "[parameters('azureResourceGroup')]"
+                        },
+                        {
+                          "name": "AZURE_CLIENT_ID",
+                          "value": "[parameters('userAssignedIdentityClientId')]"
+                        },
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "[parameters('applicationInsightsConnectionString')]"
+                        },
+                        {
+                          "name": "PORT",
+                          "value": "80"
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": 1,
+                    "maxReplicas": 3,
+                    "rules": [
+                      {
+                        "name": "http-scaling",
+                        "http": {
+                          "metadata": {
+                            "concurrentRequests": "50"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
               },
               "dependsOn": [
-                "[resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName'))]"
+                "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+                "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('baseName')))]"
               ]
             }
           ],
           "outputs": {
-            "staticWebAppId": {
+            "containerAppUrl": {
               "type": "string",
-              "value": "[resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName'))]"
+              "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-app', parameters('baseName'))), '2024-03-01').configuration.ingress.fqdn)]"
             },
-            "staticWebAppName": {
+            "containerAppName": {
               "type": "string",
-              "value": "[parameters('staticWebAppName')]"
+              "value": "[format('{0}-app', parameters('baseName'))]"
             },
-            "staticWebAppUrl": {
+            "containerAppPrincipalId": {
               "type": "string",
-              "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName')), '2023-01-01').defaultHostname)]"
+              "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-app', parameters('baseName'))), '2024-03-01', 'full').identity.principalId]"
             },
-            "staticWebAppPrincipalId": {
+            "acrName": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName')), '2023-01-01', 'full').identity.principalId]"
+              "value": "[variables('acrName')]"
+            },
+            "acrLoginServer": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]"
+            },
+            "containerAppEnvName": {
+              "type": "string",
+              "value": "[format('{0}-cae', parameters('baseName'))]"
             }
           }
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-foundry')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
-        "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]"
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-uami')]"
       ]
     },
     {
@@ -1228,8 +1556,11 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "staticWebAppPrincipalId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppPrincipalId.value]"
+          "uamiPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-uami'), '2022-09-01').outputs.identityPrincipalId.value]"
+          },
+          "searchServicePrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2022-09-01').outputs.searchServicePrincipalId.value]"
           },
           "searchServiceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-search'), '2022-09-01').outputs.searchServiceId.value]"
@@ -1238,7 +1569,7 @@
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2022-09-01').outputs.storageAccountId.value]"
           },
           "aiServicesId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value]"
+            "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesId]"
           }
         },
         "template": {
@@ -1248,14 +1579,21 @@
             "_generator": {
               "name": "bicep",
               "version": "0.30.3.12046",
-              "templateHash": "5121340955354420410"
+              "templateHash": "5116389097021707357"
             }
           },
           "parameters": {
-            "staticWebAppPrincipalId": {
+            "uamiPrincipalId": {
               "type": "string",
               "metadata": {
-                "description": "Principal ID of the Static Web App managed identity"
+                "description": "Principal ID of the User-Assigned Managed Identity (shared across all services)"
+              }
+            },
+            "searchServicePrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID of the Search service system-assigned managed identity (for indexer ingestion)"
               }
             },
             "searchServiceId": {
@@ -1283,7 +1621,10 @@
           "variables": {
             "roleDefinitions": {
               "searchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
+              "searchServiceContributor": "7ca78c08-252a-4471-8644-bb5ff32d4ba0",
+              "searchIndexDataReader": "1407120a-92aa-4202-b7e9-c0e197c71c8f",
               "storageBlobDataContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+              "storageBlobDataReader": "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
               "cognitiveServicesUser": "a97b65f3-24c7-4388-baec-2e87135dc908"
             }
           },
@@ -1293,10 +1634,34 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.Search/searchServices/{0}', last(split(parameters('searchServiceId'), '/')))]",
-              "name": "[guid(parameters('searchServiceId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').searchIndexDataContributor)]",
+              "name": "[guid(parameters('searchServiceId'), parameters('uamiPrincipalId'), variables('roleDefinitions').searchIndexDataContributor)]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').searchIndexDataContributor)]",
-                "principalId": "[parameters('staticWebAppPrincipalId')]",
+                "principalId": "[parameters('uamiPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('searchServiceId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Search/searchServices/{0}', last(split(parameters('searchServiceId'), '/')))]",
+              "name": "[guid(parameters('searchServiceId'), parameters('uamiPrincipalId'), variables('roleDefinitions').searchIndexDataReader)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').searchIndexDataReader)]",
+                "principalId": "[parameters('uamiPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('searchServiceId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Search/searchServices/{0}', last(split(parameters('searchServiceId'), '/')))]",
+              "name": "[guid(parameters('searchServiceId'), parameters('uamiPrincipalId'), variables('roleDefinitions').searchServiceContributor)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').searchServiceContributor)]",
+                "principalId": "[parameters('uamiPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             },
@@ -1305,10 +1670,10 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.Storage/storageAccounts/{0}', last(split(parameters('storageAccountId'), '/')))]",
-              "name": "[guid(parameters('storageAccountId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').storageBlobDataContributor)]",
+              "name": "[guid(parameters('storageAccountId'), parameters('uamiPrincipalId'), variables('roleDefinitions').storageBlobDataContributor)]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').storageBlobDataContributor)]",
-                "principalId": "[parameters('staticWebAppPrincipalId')]",
+                "principalId": "[parameters('uamiPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             },
@@ -1317,35 +1682,46 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.CognitiveServices/accounts/{0}', last(split(parameters('aiServicesId'), '/')))]",
-              "name": "[guid(parameters('aiServicesId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').cognitiveServicesUser)]",
+              "name": "[guid(parameters('aiServicesId'), parameters('uamiPrincipalId'), variables('roleDefinitions').cognitiveServicesUser)]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').cognitiveServicesUser)]",
-                "principalId": "[parameters('staticWebAppPrincipalId')]",
+                "principalId": "[parameters('uamiPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[and(not(empty(parameters('aiServicesId'))), not(empty(parameters('searchServicePrincipalId'))))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.CognitiveServices/accounts/{0}', last(split(parameters('aiServicesId'), '/')))]",
+              "name": "[guid(parameters('aiServicesId'), parameters('searchServicePrincipalId'), variables('roleDefinitions').cognitiveServicesUser)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').cognitiveServicesUser)]",
+                "principalId": "[parameters('searchServicePrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[and(not(empty(parameters('storageAccountId'))), not(empty(parameters('searchServicePrincipalId'))))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', last(split(parameters('storageAccountId'), '/')))]",
+              "name": "[guid(parameters('storageAccountId'), parameters('searchServicePrincipalId'), variables('roleDefinitions').storageBlobDataReader)]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleDefinitions').storageBlobDataReader)]",
+                "principalId": "[parameters('searchServicePrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             }
-          ],
-          "outputs": {
-            "searchRoleAssignmentId": {
-              "type": "string",
-              "value": "[if(not(empty(parameters('searchServiceId'))), extensionResourceId(resourceId('Microsoft.Search/searchServices', last(split(parameters('searchServiceId'), '/'))), 'Microsoft.Authorization/roleAssignments', guid(parameters('searchServiceId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').searchIndexDataContributor)), '')]"
-            },
-            "storageRoleAssignmentId": {
-              "type": "string",
-              "value": "[if(not(empty(parameters('storageAccountId'))), extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', last(split(parameters('storageAccountId'), '/'))), 'Microsoft.Authorization/roleAssignments', guid(parameters('storageAccountId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').storageBlobDataContributor)), '')]"
-            },
-            "aiServicesRoleAssignmentId": {
-              "type": "string",
-              "value": "[if(not(empty(parameters('aiServicesId'))), extensionResourceId(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('aiServicesId'), '/'))), 'Microsoft.Authorization/roleAssignments', guid(parameters('aiServicesId'), parameters('staticWebAppPrincipalId'), variables('roleDefinitions').cognitiveServicesUser)), '')]"
-            }
-          }
+          ]
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-foundry')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-search')]",
-        "[resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp')]",
-        "[resourceId('Microsoft.Resources/deployments', 'deploy-storage')]"
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-storage')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-uami')]"
       ]
     }
   ],
@@ -1368,19 +1744,19 @@
     },
     "openAIEndpoint": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesEndpoint]"
     },
     "embeddingDeploymentName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).embeddingDeploymentName]"
     },
     "chatDeploymentName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).chatDeploymentName]"
     },
     "aiServicesName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesName]"
     },
     "storageAccountName": {
       "type": "string",
@@ -1396,23 +1772,31 @@
     },
     "foundryProjectEndpoint": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).projectEndpoint]"
     },
     "foundryProjectName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).projectName]"
     },
     "foundryAccountName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesName]"
     },
-    "staticWebAppUrl": {
+    "containerAppUrl": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppUrl.value]"
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.containerAppUrl.value]"
     },
-    "staticWebAppName": {
+    "containerAppName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppName.value]"
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.containerAppName.value]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.acrName.value]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.acrLoginServer.value]"
     },
     "logAnalyticsWorkspaceId": {
       "type": "string",
@@ -1431,29 +1815,33 @@
       "value": {
         "message": "Deployment completed successfully!",
         "nextSteps": [
-          "[format('1. Visit your Static Web App at: {0}', reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppUrl.value)]",
-          "2. Configure GitHub Actions for automated deployments",
+          "[format('1. Visit your Container App at: {0}', reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.containerAppUrl.value)]",
+          "2. Run azd deploy to push your app image",
           "3. Upload sample data using the provided script",
           "4. Create your first knowledge base in the app"
         ],
         "estimatedMonthlyCost": "[if(equals(parameters('environment'), 'dev'), '$100-150', if(equals(parameters('environment'), 'staging'), '$250-350', '$500+'))]",
         "resources": {
           "search": "[variables('resourceNames').search]",
-          "aiServices": "[variables('resourceNames').openai]",
+          "aiServices": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesName]",
           "storage": "[variables('resourceNames').storage]",
-          "foundry": "[format('{0} / {1}', variables('resourceNames').openai, variables('resourceNames').project)]",
-          "staticWebApp": "[variables('resourceNames').staticWebApp]",
+          "foundry": "[format('{0} / {1}', createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesName, createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).projectName)]",
+          "containerApp": "[variables('resourceNames').containerApp]",
           "monitoring": "[format('{0} / {1}', variables('resourceNames').logAnalytics, variables('resourceNames').appInsights)]"
         }
       }
     },
-    "AZURE_STATIC_WEB_APP_NAME": {
+    "AZURE_CONTAINER_REGISTRY_NAME": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppName.value]"
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.acrName.value]"
+    },
+    "AZURE_CONTAINER_REGISTRY_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.acrLoginServer.value]"
     },
     "SERVICE_WEB_ENDPOINT_URL": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-staticwebapp'), '2022-09-01').outputs.staticWebAppUrl.value]"
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-containerapp'), '2022-09-01').outputs.containerAppUrl.value]"
     },
     "AZURE_SEARCH_SERVICE_NAME": {
       "type": "string",
@@ -1465,11 +1853,11 @@
     },
     "AZURE_AI_SERVICES_NAME": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesName]"
     },
     "AZURE_OPENAI_NAME": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesName]"
     },
     "AZURE_SEARCH_ENDPOINT": {
       "type": "string",
@@ -1477,11 +1865,27 @@
     },
     "AZURE_OPENAI_ENDPOINT": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).aiServicesEndpoint]"
     },
     "AZURE_FOUNDRY_PROJECT_ENDPOINT": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value]"
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).projectEndpoint]"
+    },
+    "AZURE_TENANT_ID": {
+      "type": "string",
+      "value": "[tenant().tenantId]"
+    },
+    "AZURE_CLIENT_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-uami'), '2022-09-01').outputs.identityClientId.value]"
+    },
+    "AZURE_CHAT_DEPLOYMENT_NAME": {
+      "type": "string",
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).chatDeploymentName]"
+    },
+    "AZURE_EMBEDDING_DEPLOYMENT_NAME": {
+      "type": "string",
+      "value": "[createObject('aiServicesEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesEndpoint.value), 'aiServicesId', if(variables('useExistingFoundry'), resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesId.value), 'aiServicesName', if(variables('useExistingFoundry'), last(split(parameters('existingFoundryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.aiServicesName.value), 'projectEndpoint', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('existingFoundryId'), '/'))), '2025-04-01-preview').endpoint, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectEndpoint.value), 'projectName', if(variables('useExistingFoundry'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry-project'), '2022-09-01').outputs.projectName.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.projectName.value), 'chatDeploymentName', if(variables('useExistingFoundry'), parameters('existingChatDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.chatDeploymentName.value), 'embeddingDeploymentName', if(variables('useExistingFoundry'), parameters('existingEmbeddingDeploymentName'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-foundry'), '2022-09-01').outputs.embeddingDeploymentName.value)).embeddingDeploymentName]"
     }
   }
 }

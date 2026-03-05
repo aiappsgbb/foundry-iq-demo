@@ -41,6 +41,15 @@ param embeddingModelName string = 'text-embedding-3-large'
 @description('Container image name (azd sets SERVICE_WEB_IMAGE_NAME after each deploy)')
 param webImageName string = ''
 
+@description('Use an existing Foundry (AI Services) instance instead of creating a new one. Set to resource ID or leave empty to provision new.')
+param existingFoundryId string = ''
+
+@description('Name of the existing Foundry chat model deployment (required when using existingFoundryId)')
+param existingChatDeploymentName string = ''
+
+@description('Name of the existing Foundry embedding model deployment (required when using existingFoundryId)')
+param existingEmbeddingDeploymentName string = ''
+
 // SKU selections based on environment
 var skuMap = {
   dev: {
@@ -85,6 +94,9 @@ var tags = {
   solution: 'Azure AI Search Knowledge Retrieval'
   managedBy: 'Bicep'
 }
+
+// Foundry mode: provision new or reuse existing
+var useExistingFoundry = !empty(existingFoundryId)
 
 // =====================================================
 // User-Assigned Managed Identity (shared across all services)
@@ -174,7 +186,7 @@ module storage 'modules/storage.bicep' = {
 
 // Deploy AI Foundry (Microsoft Foundry) with Project, Connections, and Model Deployments
 // Uses modern CognitiveServices resource types — no legacy MachineLearningServices Hub/Project
-module foundry 'modules/foundry.bicep' = {
+module foundry 'modules/foundry.bicep' = if (!useExistingFoundry) {
   name: 'deploy-foundry'
   params: {
     aiServicesName: resourceNames.openai // Reuse openai naming for AI Services
@@ -190,6 +202,39 @@ module foundry 'modules/foundry.bicep' = {
     embeddingCapacity: embeddingModelConfig[embeddingModelName].capacity
     userAssignedIdentityId: userIdentity.outputs.identityId
   }
+}
+
+// Reference existing Foundry instance (when reusing centralized quota)
+// The existing AI Services account must already have model deployments configured
+resource existingAiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (useExistingFoundry) {
+  name: last(split(existingFoundryId, '/'))!
+  scope: resourceGroup()
+}
+
+// When using an existing Foundry in a different resource group, we need
+// a lightweight project in the existing account for MCP connections
+module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingFoundry) {
+  name: 'deploy-foundry-project'
+  params: {
+    aiServicesName: last(split(existingFoundryId, '/'))!
+    projectName: resourceNames.project
+    location: location
+    tags: tags
+    searchResourceId: search.outputs.searchServiceId
+    searchEndpoint: search.outputs.searchEndpoint
+    userAssignedIdentityId: userIdentity.outputs.identityId
+  }
+}
+
+// Resolved Foundry outputs — works for both new and existing
+var resolvedFoundry = {
+  aiServicesEndpoint: useExistingFoundry ? existingAiServices.properties.endpoint : foundry.outputs.aiServicesEndpoint
+  aiServicesId: useExistingFoundry ? existingAiServices.id : foundry.outputs.aiServicesId
+  aiServicesName: useExistingFoundry ? existingAiServices.name : foundry.outputs.aiServicesName
+  projectEndpoint: useExistingFoundry ? existingAiServices.properties.endpoint : foundry.outputs.projectEndpoint
+  projectName: useExistingFoundry ? existingFoundryProject.outputs.projectName : foundry.outputs.projectName
+  chatDeploymentName: useExistingFoundry ? existingChatDeploymentName : foundry.outputs.chatDeploymentName
+  embeddingDeploymentName: useExistingFoundry ? existingEmbeddingDeploymentName : foundry.outputs.embeddingDeploymentName
 }
 
 // Deploy Monitoring (Log Analytics + Application Insights)
@@ -215,9 +260,9 @@ module containerApp 'modules/containerapp.bicep' = {
     // Environment variables
     azureSearchEndpoint: search.outputs.searchEndpoint
     azureSearchApiVersion: '2025-11-01-preview'
-    azureOpenAIEndpoint: foundry.outputs.aiServicesEndpoint
-    foundryProjectEndpoint: foundry.outputs.projectEndpoint
-    foundryProjectName: foundry.outputs.projectName
+    azureOpenAIEndpoint: resolvedFoundry.aiServicesEndpoint
+    foundryProjectEndpoint: resolvedFoundry.projectEndpoint
+    foundryProjectName: resolvedFoundry.projectName
     azureSubscriptionId: subscription().subscriptionId
     azureResourceGroup: resourceGroup().name
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
@@ -235,7 +280,7 @@ module rbac 'modules/rbac.bicep' = {
     searchServicePrincipalId: search.outputs.searchServicePrincipalId
     searchServiceId: search.outputs.searchServiceId
     storageAccountId: storage.outputs.storageAccountId
-    aiServicesId: foundry.outputs.aiServicesId
+    aiServicesId: resolvedFoundry.aiServicesId
   }
 }
 
@@ -248,10 +293,10 @@ output searchEndpoint string = search.outputs.searchEndpoint
 output searchServiceName string = search.outputs.searchServiceName
 
 // AI Services outputs (unified model hosting via Foundry)
-output openAIEndpoint string = foundry.outputs.aiServicesEndpoint
-output embeddingDeploymentName string = foundry.outputs.embeddingDeploymentName
-output chatDeploymentName string = foundry.outputs.chatDeploymentName
-output aiServicesName string = foundry.outputs.aiServicesName
+output openAIEndpoint string = resolvedFoundry.aiServicesEndpoint
+output embeddingDeploymentName string = resolvedFoundry.embeddingDeploymentName
+output chatDeploymentName string = resolvedFoundry.chatDeploymentName
+output aiServicesName string = resolvedFoundry.aiServicesName
 
 // Storage outputs
 output storageAccountName string = storage.outputs.storageAccountName
@@ -259,9 +304,9 @@ output sampleDataContainerName string = storage.outputs.sampleDataContainerName
 output knowledgeDataContainerName string = storage.outputs.knowledgeDataContainerName
 
 // Foundry outputs
-output foundryProjectEndpoint string = foundry.outputs.projectEndpoint
-output foundryProjectName string = foundry.outputs.projectName
-output foundryAccountName string = foundry.outputs.aiServicesName
+output foundryProjectEndpoint string = resolvedFoundry.projectEndpoint
+output foundryProjectName string = resolvedFoundry.projectName
+output foundryAccountName string = resolvedFoundry.aiServicesName
 
 // Container App outputs
 output containerAppUrl string = containerApp.outputs.containerAppUrl
@@ -286,9 +331,9 @@ output deploymentSummary object = {
   estimatedMonthlyCost: environment == 'dev' ? '$100-150' : environment == 'staging' ? '$250-350' : '$500+'
   resources: {
     search: resourceNames.search
-    aiServices: resourceNames.openai
+    aiServices: resolvedFoundry.aiServicesName
     storage: resourceNames.storage
-    foundry: '${resourceNames.openai} / ${resourceNames.project}'
+    foundry: '${resolvedFoundry.aiServicesName} / ${resolvedFoundry.projectName}'
     containerApp: resourceNames.containerApp
     monitoring: '${resourceNames.logAnalytics} / ${resourceNames.appInsights}'
   }
@@ -311,15 +356,15 @@ output SERVICE_WEB_ENDPOINT_URL string = containerApp.outputs.containerAppUrl
 // Used by infra/hooks/postprovision.sh to configure role assignments
 output AZURE_SEARCH_SERVICE_NAME string = search.outputs.searchServiceName
 output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
-output AZURE_AI_SERVICES_NAME string = foundry.outputs.aiServicesName
+output AZURE_AI_SERVICES_NAME string = resolvedFoundry.aiServicesName
 // Backward compatibility: Scripts expect AZURE_OPENAI_NAME (now AI Services via Foundry)
-output AZURE_OPENAI_NAME string = foundry.outputs.aiServicesName
+output AZURE_OPENAI_NAME string = resolvedFoundry.aiServicesName
 
 // Environment configuration for the web service
 // These values are used by scripts/upload-sample-data-azd.sh
 output AZURE_SEARCH_ENDPOINT string = search.outputs.searchEndpoint
-output AZURE_OPENAI_ENDPOINT string = foundry.outputs.aiServicesEndpoint
-output AZURE_FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
+output AZURE_OPENAI_ENDPOINT string = resolvedFoundry.aiServicesEndpoint
+output AZURE_FOUNDRY_PROJECT_ENDPOINT string = resolvedFoundry.projectEndpoint
 
 // Tenant ID — used by postprovision hooks to authenticate with AzureDeveloperCliCredential
 output AZURE_TENANT_ID string = tenant().tenantId
@@ -328,5 +373,5 @@ output AZURE_TENANT_ID string = tenant().tenantId
 output AZURE_CLIENT_ID string = userIdentity.outputs.identityClientId
 
 // Deployed model names — used by postprovision to configure knowledge base/source JSON configs
-output AZURE_CHAT_DEPLOYMENT_NAME string = foundry.outputs.chatDeploymentName
-output AZURE_EMBEDDING_DEPLOYMENT_NAME string = foundry.outputs.embeddingDeploymentName
+output AZURE_CHAT_DEPLOYMENT_NAME string = resolvedFoundry.chatDeploymentName
+output AZURE_EMBEDDING_DEPLOYMENT_NAME string = resolvedFoundry.embeddingDeploymentName
