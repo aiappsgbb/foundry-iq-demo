@@ -87,6 +87,9 @@ hooks:
         Write-Host "  Knowledge sources will be created but will have no documents to index."
         Write-Host "  Place PDF files in data/blob/$containerName/ and re-run 'azd provision' to upload."
       }
+
+      # Ensure the hook exits successfully even when data upload is skipped
+      exit 0
     continueOnError: false
 
 # =====================================================================
