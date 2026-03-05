@@ -330,8 +330,9 @@ def deploy_knowledge_source(
     """
     Deploy a knowledge source to Azure AI Search using REST API.
     
-    The Python SDK doesn't fully support knowledge sources yet,
-    so we use the REST API directly with Entra ID Bearer tokens.
+    Uses PUT (create-or-update). If the update fails because the
+    connection string changed, logs a warning and continues
+    (the existing source is still usable).
     
     Returns:
         True if successful, False otherwise
@@ -348,14 +349,28 @@ def deploy_knowledge_source(
         
         if response.status_code in (200, 201, 204):
             return True
-        else:
-            logger.error(f"    HTTP {response.status_code}")
+        
+        # Handle "connection string cannot be changed" — source already exists
+        # with a different storage account. This is expected when redeploying
+        # to an existing Search service that was previously configured.
+        if response.status_code == 400:
             try:
                 error_detail = response.json()
-                logger.error(f"    Error: {json.dumps(error_detail, indent=2)}")
+                error_msg = json.dumps(error_detail)
+                if "connection string cannot be changed" in error_msg.lower():
+                    logger.warning(f"    WARNING: Knowledge source '{source_name}' already exists with a different connection string.")
+                    logger.warning(f"    The existing source will be used as-is. To reconfigure, delete it manually first.")
+                    return True
             except json.JSONDecodeError:
-                logger.error(f"    Response: {response.text}")
-            return False
+                pass
+        
+        logger.error(f"    HTTP {response.status_code}")
+        try:
+            error_detail = response.json()
+            logger.error(f"    Error: {json.dumps(error_detail, indent=2)}")
+        except json.JSONDecodeError:
+            logger.error(f"    Response: {response.text}")
+        return False
             
     except requests.RequestException as e:
         logger.error(f"    Request failed: {e}")
