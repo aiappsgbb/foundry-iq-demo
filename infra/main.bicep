@@ -38,6 +38,9 @@ param chatModelName string = 'gpt-4o-mini'
 ])
 param embeddingModelName string = 'text-embedding-3-large'
 
+@description('Container image name (azd sets SERVICE_WEB_IMAGE_NAME after each deploy)')
+param webImageName string = ''
+
 // SKU selections based on environment
 var skuMap = {
   dev: {
@@ -208,6 +211,7 @@ module containerApp 'modules/containerapp.bicep' = {
     location: location
     tags: tags
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+    imageName: webImageName
     // Environment variables
     azureSearchEndpoint: search.outputs.searchEndpoint
     azureSearchApiVersion: '2025-11-01-preview'

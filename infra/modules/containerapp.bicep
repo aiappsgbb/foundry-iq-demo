@@ -1,5 +1,5 @@
 // Azure Container Apps hosting for Next.js application
-// Follows azd conventions: fetchLatestImage, SERVICE_WEB_IMAGE_NAME, identity-based ACR pull
+// Uses SERVICE_WEB_IMAGE_NAME (set by azd after deploy) to preserve image across provisions
 @description('Name prefix for container app resources')
 param baseName string
 
@@ -11,6 +11,9 @@ param tags object = {}
 
 @description('Log Analytics workspace ID for Container App Environment')
 param logAnalyticsWorkspaceId string
+
+@description('Container image name from last azd deploy (empty on first deploy)')
+param imageName string = ''
 
 // =====================================================
 // Environment Variables
@@ -120,8 +123,8 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [
         {
-          // Placeholder image — azd deploy replaces this with the real app image
-          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+          // Use last deployed image if available, otherwise placeholder (azd deploy replaces it)
+          image: !empty(imageName) ? imageName : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           name: 'web'
           resources: {
             cpu: json('0.5')

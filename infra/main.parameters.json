@@ -16,6 +16,9 @@
     },
     "embeddingModelName": {
       "value": "${AZURE_EMBEDDING_MODEL=text-embedding-3-large}"
+    },
+    "webImageName": {
+      "value": "${SERVICE_WEB_IMAGE_NAME=}"
     }
   }
 }
