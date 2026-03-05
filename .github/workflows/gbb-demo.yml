@@ -71,12 +71,35 @@ jobs:
                 --subscription "$AZURE_SUBSCRIPTION_ID"
             fi
 
+      # Check if the Container App already exists in the resource group.
+      # This prevents ResourceNotFound errors when azd tries to fetch the
+      # current image from a previously-deleted Container App.
+      - name: Detect Container App existence
+        id: check-app
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            APP_NAME=$(az containerapp list \
+              -g "$AZURE_RESOURCE_GROUP" \
+              --subscription "$AZURE_SUBSCRIPTION_ID" \
+              --query "[?tags.\"azd-service-name\"=='web'].name | [0]" \
+              -o tsv 2>/dev/null || echo "")
+            if [ -n "$APP_NAME" ]; then
+              echo "Container App found: $APP_NAME"
+              echo "app-exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "No Container App found for service 'web'"
+              echo "app-exists=false" >> $GITHUB_OUTPUT
+            fi
+
       # azd provision deploys Bicep (ACA, ACR, Search, Foundry, Storage, RBAC)
       # and triggers the postprovision hook which configures search objects + uploads sample data
       - name: Provision Infrastructure
         run: azd provision --no-prompt
         env:
           AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
+          SERVICE_WEB_RESOURCE_EXISTS: ${{ steps.check-app.outputs.app-exists }}
 
       # azd deploy builds the Docker image remotely in ACR and updates the Container App
       - name: Deploy Application
