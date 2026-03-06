@@ -100,6 +100,8 @@ var tags = {
 
 // Foundry mode: provision new or reuse existing
 var useExistingFoundry = !empty(existingFoundryName)
+// Fallback to current RG so scope expression is always valid (even when condition is false)
+var targetFoundryRg = !empty(existingFoundryResourceGroup) ? existingFoundryResourceGroup : resourceGroup().name
 
 // =====================================================
 // User-Assigned Managed Identity (shared across all services)
@@ -211,7 +213,7 @@ module foundry 'modules/foundry.bicep' = if (!useExistingFoundry) {
 // Scoped to the existing Foundry's resource group (may differ from current RG)
 module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingFoundry) {
   name: 'deploy-foundry-project'
-  scope: resourceGroup(existingFoundryResourceGroup)
+  scope: resourceGroup(targetFoundryRg)
   params: {
     aiServicesName: existingFoundryName
     projectName: resourceNames.project
@@ -226,7 +228,7 @@ module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingF
 // RBAC for UAMI + Search MI on the existing Foundry (cross-RG)
 module existingFoundryRbac 'modules/foundry-rbac.bicep' = if (useExistingFoundry) {
   name: 'deploy-foundry-rbac'
-  scope: resourceGroup(existingFoundryResourceGroup)
+  scope: resourceGroup(targetFoundryRg)
   params: {
     aiServicesName: existingFoundryName
     uamiPrincipalId: userIdentity.outputs.identityPrincipalId
