@@ -41,13 +41,16 @@ param embeddingModelName string = 'text-embedding-3-large'
 @description('Container image name (azd sets SERVICE_WEB_IMAGE_NAME after each deploy)')
 param webImageName string = ''
 
-@description('Use an existing Foundry (AI Services) instance instead of creating a new one. Set to resource ID or leave empty to provision new.')
-param existingFoundryId string = ''
+@description('Resource group of an existing Foundry (AI Services) account to reuse. Leave empty to provision new.')
+param existingFoundryResourceGroup string = ''
 
-@description('Name of the existing Foundry chat model deployment (required when using existingFoundryId)')
+@description('Name of an existing Foundry (AI Services) account to reuse. Leave empty to provision new.')
+param existingFoundryName string = ''
+
+@description('Name of the existing Foundry chat model deployment (required when using existing Foundry)')
 param existingChatDeploymentName string = ''
 
-@description('Name of the existing Foundry embedding model deployment (required when using existingFoundryId)')
+@description('Name of the existing Foundry embedding model deployment (required when using existing Foundry)')
 param existingEmbeddingDeploymentName string = ''
 
 // SKU selections based on environment
@@ -96,11 +99,7 @@ var tags = {
 }
 
 // Foundry mode: provision new or reuse existing
-var useExistingFoundry = !empty(existingFoundryId)
-// Parse resource group and name from the existing Foundry resource ID
-// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}
-var existingFoundryRg = useExistingFoundry ? split(existingFoundryId, '/')[4] : ''
-var existingFoundryName = useExistingFoundry ? last(split(existingFoundryId, '/'))! : ''
+var useExistingFoundry = !empty(existingFoundryName)
 
 // =====================================================
 // User-Assigned Managed Identity (shared across all services)
@@ -212,7 +211,7 @@ module foundry 'modules/foundry.bicep' = if (!useExistingFoundry) {
 // Scoped to the existing Foundry's resource group (may differ from current RG)
 module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingFoundry) {
   name: 'deploy-foundry-project'
-  scope: resourceGroup(existingFoundryRg)
+  scope: resourceGroup(existingFoundryResourceGroup)
   params: {
     aiServicesName: existingFoundryName
     projectName: resourceNames.project
@@ -227,7 +226,7 @@ module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingF
 // RBAC for UAMI + Search MI on the existing Foundry (cross-RG)
 module existingFoundryRbac 'modules/foundry-rbac.bicep' = if (useExistingFoundry) {
   name: 'deploy-foundry-rbac'
-  scope: resourceGroup(existingFoundryRg)
+  scope: resourceGroup(existingFoundryResourceGroup)
   params: {
     aiServicesName: existingFoundryName
     uamiPrincipalId: userIdentity.outputs.identityPrincipalId

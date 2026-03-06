@@ -20,8 +20,11 @@
     "webImageName": {
       "value": "${SERVICE_WEB_IMAGE_NAME=}"
     },
-    "existingFoundryId": {
-      "value": "${AZURE_EXISTING_FOUNDRY_ID=}"
+    "existingFoundryResourceGroup": {
+      "value": "${AZURE_EXISTING_FOUNDRY_RESOURCE_GROUP=}"
+    },
+    "existingFoundryName": {
+      "value": "${AZURE_EXISTING_FOUNDRY_NAME=}"
     },
     "existingChatDeploymentName": {
       "value": "${AZURE_EXISTING_CHAT_DEPLOYMENT=}"

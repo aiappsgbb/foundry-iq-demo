@@ -71,15 +71,23 @@ jobs:
                 --subscription "$AZURE_SUBSCRIPTION_ID"
             fi
 
+      # Inject existing Foundry config into azd environment (if set)
+      - name: Configure Existing Foundry
+        if: ${{ vars.AZURE_EXISTING_FOUNDRY_NAME != '' }}
+        run: |
+          azd env set AZURE_EXISTING_FOUNDRY_RESOURCE_GROUP "${{ vars.AZURE_EXISTING_FOUNDRY_RESOURCE_GROUP }}"
+          azd env set AZURE_EXISTING_FOUNDRY_NAME "${{ vars.AZURE_EXISTING_FOUNDRY_NAME }}"
+          azd env set AZURE_EXISTING_CHAT_DEPLOYMENT "${{ vars.AZURE_EXISTING_CHAT_DEPLOYMENT }}"
+          azd env set AZURE_EXISTING_EMBEDDING_DEPLOYMENT "${{ vars.AZURE_EXISTING_EMBEDDING_DEPLOYMENT }}"
+        env:
+          AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
+
       # azd provision deploys Bicep (ACA, ACR, Search, Foundry, Storage, RBAC)
       # and triggers the postprovision hook which configures search objects + uploads sample data
       - name: Provision Infrastructure
         run: azd provision --no-prompt
         env:
           AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-          AZURE_EXISTING_FOUNDRY_ID: ${{ secrets.AZURE_EXISTING_FOUNDRY_ID }}
-          AZURE_EXISTING_CHAT_DEPLOYMENT: ${{ vars.AZURE_EXISTING_CHAT_DEPLOYMENT }}
-          AZURE_EXISTING_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_EXISTING_EMBEDDING_DEPLOYMENT }}
 
       # azd deploy builds the Docker image remotely in ACR and updates the Container App
       - name: Deploy Application

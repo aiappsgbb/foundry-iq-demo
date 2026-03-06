@@ -50,8 +50,9 @@ See [AZD Deployment Guide](./docs/AZD_DEPLOYMENT.md) for detailed instructions.
 If you already have an Azure AI Services (Foundry) account with model deployments and want to centralize quota, you can skip provisioning a new one:
 
 ```bash
-# Point to your existing AI Services account (can be in any resource group in the same subscription)
-azd env set AZURE_EXISTING_FOUNDRY_ID /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account-name>
+# Point to your existing AI Services account
+azd env set AZURE_EXISTING_FOUNDRY_RESOURCE_GROUP rg-my-foundry
+azd env set AZURE_EXISTING_FOUNDRY_NAME my-ai-services-account
 
 # Specify your existing model deployment names
 azd env set AZURE_EXISTING_CHAT_DEPLOYMENT gpt-4o
@@ -60,7 +61,7 @@ azd env set AZURE_EXISTING_EMBEDDING_DEPLOYMENT text-embedding-3-large
 azd up
 ```
 
-When these are set, Bicep skips AI Services and model deployment creation, creates only a Foundry Project + Search connection on the existing account, and applies RBAC so the UAMI can access it. Leave them empty (default) to provision a new Foundry instance.
+When these are set, Bicep skips AI Services and model deployment creation, creates only a Foundry Project + Search connection on the existing account, and applies RBAC so the UAMI can access it. The existing account can be in any resource group within the same subscription. Leave them empty (default) to provision a new Foundry instance.
 
 ## Quick Start (Local Development)
 
