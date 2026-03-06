@@ -73,3 +73,4 @@ output projectName string = aiProject.name
 output projectEndpoint string = aiServices.properties.endpoint
 output aiServicesId string = aiServices.id
 output aiServicesName string = aiServices.name
+output aiServicesEndpoint string = aiServices.properties.endpoint

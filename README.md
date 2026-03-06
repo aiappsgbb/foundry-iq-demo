@@ -50,7 +50,7 @@ See [AZD Deployment Guide](./docs/AZD_DEPLOYMENT.md) for detailed instructions.
 If you already have an Azure AI Services (Foundry) account with model deployments and want to centralize quota, you can skip provisioning a new one:
 
 ```bash
-# Point to your existing AI Services account (must be in the same resource group)
+# Point to your existing AI Services account (can be in any resource group in the same subscription)
 azd env set AZURE_EXISTING_FOUNDRY_ID /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account-name>
 
 # Specify your existing model deployment names

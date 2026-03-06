@@ -97,6 +97,10 @@ var tags = {
 
 // Foundry mode: provision new or reuse existing
 var useExistingFoundry = !empty(existingFoundryId)
+// Parse resource group and name from the existing Foundry resource ID
+// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}
+var existingFoundryRg = useExistingFoundry ? split(existingFoundryId, '/')[4] : ''
+var existingFoundryName = useExistingFoundry ? last(split(existingFoundryId, '/'))! : ''
 
 // =====================================================
 // User-Assigned Managed Identity (shared across all services)
@@ -204,18 +208,13 @@ module foundry 'modules/foundry.bicep' = if (!useExistingFoundry) {
   }
 }
 
-// Reference existing Foundry instance (when reusing centralized quota)
-// CONSTRAINT: The existing AI Services account must be in the SAME resource group.
-// It must already have chat + embedding model deployments configured.
-resource existingAiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (useExistingFoundry) {
-  name: last(split(existingFoundryId, '/'))!
-}
-
-// Create a lightweight project + search connection on the existing AI Services account
+// Create a project + search connection on the existing AI Services account
+// Scoped to the existing Foundry's resource group (may differ from current RG)
 module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingFoundry) {
   name: 'deploy-foundry-project'
+  scope: resourceGroup(existingFoundryRg)
   params: {
-    aiServicesName: last(split(existingFoundryId, '/'))!
+    aiServicesName: existingFoundryName
     projectName: resourceNames.project
     location: location
     tags: tags
@@ -225,12 +224,23 @@ module existingFoundryProject 'modules/foundry-project.bicep' = if (useExistingF
   }
 }
 
+// RBAC for UAMI + Search MI on the existing Foundry (cross-RG)
+module existingFoundryRbac 'modules/foundry-rbac.bicep' = if (useExistingFoundry) {
+  name: 'deploy-foundry-rbac'
+  scope: resourceGroup(existingFoundryRg)
+  params: {
+    aiServicesName: existingFoundryName
+    uamiPrincipalId: userIdentity.outputs.identityPrincipalId
+    searchServicePrincipalId: search.outputs.searchServicePrincipalId
+  }
+}
+
 // Resolved Foundry outputs — works for both new and existing
 var resolvedFoundry = {
-  aiServicesEndpoint: useExistingFoundry ? existingAiServices.properties.endpoint : foundry.outputs.aiServicesEndpoint
-  aiServicesId: useExistingFoundry ? existingAiServices.id : foundry.outputs.aiServicesId
-  aiServicesName: useExistingFoundry ? existingAiServices.name : foundry.outputs.aiServicesName
-  projectEndpoint: useExistingFoundry ? existingAiServices.properties.endpoint : foundry.outputs.projectEndpoint
+  aiServicesEndpoint: useExistingFoundry ? existingFoundryProject.outputs.aiServicesEndpoint : foundry.outputs.aiServicesEndpoint
+  aiServicesId: useExistingFoundry ? existingFoundryProject.outputs.aiServicesId : foundry.outputs.aiServicesId
+  aiServicesName: useExistingFoundry ? existingFoundryName : foundry.outputs.aiServicesName
+  projectEndpoint: useExistingFoundry ? existingFoundryProject.outputs.projectEndpoint : foundry.outputs.projectEndpoint
   projectName: useExistingFoundry ? existingFoundryProject.outputs.projectName : foundry.outputs.projectName
   chatDeploymentName: useExistingFoundry ? existingChatDeploymentName : foundry.outputs.chatDeploymentName
   embeddingDeploymentName: useExistingFoundry ? existingEmbeddingDeploymentName : foundry.outputs.embeddingDeploymentName
@@ -272,6 +282,7 @@ module containerApp 'modules/containerapp.bicep' = {
 
 // Deploy RBAC Role Assignments
 // Assigns roles to: UAMI (shared identity) + Search system MI (knowledge source ingestion)
+// Note: When using existing Foundry, AI Services RBAC is handled by foundry-rbac.bicep (cross-RG)
 module rbac 'modules/rbac.bicep' = {
   name: 'deploy-rbac'
   params: {
@@ -279,7 +290,7 @@ module rbac 'modules/rbac.bicep' = {
     searchServicePrincipalId: search.outputs.searchServicePrincipalId
     searchServiceId: search.outputs.searchServiceId
     storageAccountId: storage.outputs.storageAccountId
-    aiServicesId: resolvedFoundry.aiServicesId
+    aiServicesId: useExistingFoundry ? '' : resolvedFoundry.aiServicesId
   }
 }
 
